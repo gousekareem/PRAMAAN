@@ -1,0 +1,50 @@
+01. API readiness (/ready)
+    → HTTP 200 {"database":"ok","postgis":"3.4.2","migrations":"5","storage":"ok"}
+02. Officer signs in on the (simulated) duty device
+    → HTTP 200; refresh token returned to device only
+03. Register demonstration device public key
+    → HTTP 201; status PENDING; fingerprint 9e06f2651f9591fb…
+04. Sync before administrator approval is refused
+    → HTTP 403 DEVICE_NOT_APPROVED
+05. Administrator approves the device (fingerprint verified out of band)
+    → HTTP 200 ACTIVE
+06. Start duty session, record location and capture evidence; sync online
+    → HTTP 200 counts={"accepted":3,"duplicate":0,"rejected":0,"conflict":0} head=#3
+07. Upload evidence bytes; server recomputes SHA-256
+    → HTTP 200 VERIFIED
+08. Inspect the local manifest and hash
+    → image SHA-256 7cdf7533d3555044…, written to local-manifest-example.json
+09. Network disconnected: device records check-in (missed → late), transit, locations, a mock-location fix, evidence and a clock anomaly locally
+    → 11 events queued (seq 4..14); nothing sent
+10. App/service restart while offline (simulated)
+    → Queue is held in the persistent outbox; sequence numbers continue (see mobile tests "never resets sequence numbers")
+11. Network restored: queued batch synchronised
+    → HTTP 200 counts={"accepted":11,"duplicate":0,"rejected":0,"conflict":0} serverReceivedAt=2026-10-13T06:36:41.059Z
+12. Duplicate upload of the same batch (e.g. response lost)
+    → HTTP 200 replayed=true; no duplicate records
+13. Same events re-sent in a new batch
+    → statuses=DUPLICATE,DUPLICATE,DUPLICATE
+14. Upload second evidence (periodic pattern)
+    → HTTP 200 VERIFIED
+15. Deliberately corrupted event payload (coordinates edited after signing)
+    → REJECTED EVENT_HASH_MISMATCH
+16. Forged client hash (recomputed, but old signature)
+    → REJECTED INVALID_SIGNATURE
+17. Corrupted evidence bytes uploaded
+    → HTTP 422 EVIDENCE_HASH_MISMATCH (quarantined, original declaration preserved)
+18. Dashboard observation (last known)
+    → RECENTLY_RECEIVED ; spatial=INSIDE_ASSIGNED_ZONE; accuracy=8 m
+19. Review flags raised for supervisor (prompts, not conclusions)
+    → CHAIN_LINK_MISMATCH, CHECKIN_LATE, CHECKIN_MISSED, CLOCK_ANOMALY, DEVICE_REGISTRATION, EVIDENCE_HASH_MISMATCH, INVALID_DEVICE_SIGNATURE, MOCK_LOCATION_INDICATOR, SCREEN_RECAPTURE_RISK, SPATIAL_ZONE_EXCEPTION
+20. PostGIS spatial-zone checks on synchronised observations
+    → EVIDENCE_CAPTURED:INSIDE_ASSIGNED_ZONE | EVIDENCE_CAPTURED:INSIDE_ASSIGNED_ZONE | LOCATION_OBSERVED:INSIDE_ASSIGNED_ZONE | LOCATION_OBSERVED:OUTSIDE_ASSIGNED_ZONE(404.9 m) | EVIDENCE_CAPTURED:INSIDE_ASSIGNED_ZONE | LOCATION_OBSERVED:INSIDE_ASSIGNED_ZONE
+21. Export evidence package and verify it independently (no API/dashboard involved)
+    → PASS; 17 checks; package SHA-256 2aec26dfcc6155a3…
+22. Modify ONE bit of the image in a copy of the package and verify again
+    → FAIL: file.evidence/original.jpg, image.sha256
+23. Generate evidence report PDF
+    → HTTP 200, 4529 bytes
+24. Verify the server audit (chain-of-custody) hash chain
+    → ok=true; 17 records; head #17
+
+Demo artefacts written to /home/claude/work/pramaan/docs/demo-run

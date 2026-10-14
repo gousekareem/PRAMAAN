@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply font-sans antialiased;
+  }
+  :focus-visible {
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center rounded bg-ink-800 px-3 py-1.5 text-sm font-medium text-white hover:bg-ink-700 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ink-600;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center rounded border border-paper-200 bg-white px-3 py-1.5 text-sm text-ink-900 hover:bg-paper-100 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ink-600;
+  }
+  .btn-danger {
+    @apply inline-flex items-center justify-center rounded bg-signal-bad px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ink-600;
+  }
+  .input {
+    @apply rounded border border-paper-200 bg-white px-2.5 py-1.5 text-sm text-ink-950 placeholder:text-ink-600/60 focus:border-ink-600 focus:outline-none focus:ring-2 focus:ring-ink-600/20;
+  }
+  .table {
+    @apply w-full border-collapse text-left text-sm;
+  }
+  .table th {
+    @apply border-b border-paper-200 bg-paper-100 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-ink-700;
+  }
+  .table td {
+    @apply border-b border-paper-100 px-3 py-2 align-top;
+  }
+  .table tbody tr:hover {
+    @apply bg-paper-50;
+  }
+}
+
+.leaflet-container {
+  font-family: inherit;
+}

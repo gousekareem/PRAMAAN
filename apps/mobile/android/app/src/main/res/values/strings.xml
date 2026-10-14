@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">PRAMAAN</string>
+    <string name="duty_channel">Active duty monitoring</string>
+    <string name="checkin_channel">Duty check-ins</string>
+</resources>

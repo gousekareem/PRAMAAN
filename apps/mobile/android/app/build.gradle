@@ -1,0 +1,99 @@
+apply plugin: "com.android.application"
+apply plugin: "org.jetbrains.kotlin.android"
+apply plugin: "com.facebook.react"
+
+/**
+ * React Native configuration (see https://reactnative.dev/docs/react-native-gradle-plugin).
+ */
+react {
+    autolinkLibrariesWithApp()
+}
+
+def enableProguardInReleaseBuilds = true
+def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
+
+// Backend URL is a build-time setting, never a secret:
+//   gradlew assembleRelease -PpramaanApiBaseUrl=https://pramaan-api.onrender.com
+def apiBaseUrl = project.findProperty("pramaanApiBaseUrl") ?: "http://10.0.2.2:4000"
+
+// Release signing comes from android/keystore.properties (git-ignored), never from source control.
+def keystorePropsFile = rootProject.file("keystore.properties")
+def keystoreProps = new Properties()
+if (keystorePropsFile.exists()) {
+    keystorePropsFile.withInputStream { keystoreProps.load(it) }
+}
+
+android {
+    ndkVersion rootProject.ext.ndkVersion
+    buildToolsVersion rootProject.ext.buildToolsVersion
+    compileSdk rootProject.ext.compileSdkVersion
+
+    namespace "com.pramaan.mobile"
+    defaultConfig {
+        applicationId "com.pramaan.mobile"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 1
+        versionName "1.0.0"
+        buildConfigField "String", "PRAMAAN_API_BASE_URL", "\"${apiBaseUrl}\""
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+    buildFeatures {
+        buildConfig true
+    }
+    signingConfigs {
+        debug {
+            // Public React Native debug keystore — debug builds only.
+            storeFile file('debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+        if (keystorePropsFile.exists()) {
+            release {
+                storeFile file(keystoreProps['storeFile'])
+                storePassword keystoreProps['storePassword']
+                keyAlias keystoreProps['keyAlias']
+                keyPassword keystoreProps['keyPassword']
+            }
+        }
+    }
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
+        release {
+            if (keystorePropsFile.exists()) {
+                signingConfig signingConfigs.release
+            }
+            minifyEnabled enableProguardInReleaseBuilds
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
+            if (!apiBaseUrl.startsWith("https://")) {
+                throw new GradleException("Release builds require -PpramaanApiBaseUrl=https://...")
+            }
+        }
+    }
+    testOptions {
+        unitTests.returnDefaultValues = true
+    }
+}
+
+dependencies {
+    implementation("com.facebook.react:react-android")
+    if (hermesEnabled.toBoolean()) {
+        implementation("com.facebook.react:hermes-android")
+    } else {
+        implementation jscFlavor
+    }
+    def cameraxVersion = "1.4.2"
+    implementation "androidx.camera:camera-core:${cameraxVersion}"
+    implementation "androidx.camera:camera-camera2:${cameraxVersion}"
+    implementation "androidx.camera:camera-lifecycle:${cameraxVersion}"
+    implementation "androidx.camera:camera-view:${cameraxVersion}"
+    implementation "androidx.camera:camera-extensions:${cameraxVersion}"
+    implementation "androidx.biometric:biometric:1.1.0"
+    implementation "androidx.core:core-ktx:1.13.1"
+    implementation "androidx.appcompat:appcompat:1.7.0"
+
+    testImplementation "junit:junit:4.13.2"
+}

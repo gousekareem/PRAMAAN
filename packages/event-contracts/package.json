@@ -1,0 +1,25 @@
+{
+  "name": "@pramaan/event-contracts",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Canonical event serialization, hashing, hash-chain verification, trusted-time model, movement rules and experimental screen-recapture risk analysis shared by the PRAMAAN mobile app, API and verifier.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "react-native": "src/index.ts",
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@noble/hashes": "1.8.0"
+  },
+  "devDependencies": {
+    "vitest": "3.2.7",
+    "typescript": "5.9.3"
+  }
+}

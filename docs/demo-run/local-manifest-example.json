@@ -1,0 +1,66 @@
+{
+  "evidenceId": "a48e2aab-da17-4272-8ae2-6ab3177ed0c4",
+  "manifestSha256": "a36b98303cc0a3a3ca56f2b8a5c8ca79ca6e0f4fd19e3e78a92689458e6bd5bd",
+  "manifest": {
+    "manifestVersion": 1,
+    "evidenceId": "a48e2aab-da17-4272-8ae2-6ab3177ed0c4",
+    "officerId": "20000000-0000-4000-8000-000000000001",
+    "dutySessionId": "30000000-0000-4000-8000-000000000001",
+    "deviceId": "788cf266-8234-4db9-91c3-a4bbc24ec8b0",
+    "appVersion": "sim-1.0.0",
+    "capture": {
+      "deviceWallTime": "2026-10-13T05:48:40.713Z",
+      "monotonicElapsedMs": 3604000,
+      "bootId": "sim-boot-1",
+      "trustedTimeEstimate": null,
+      "trustedTimeUncertaintyMs": null,
+      "cameraId": "sim-0",
+      "captureProvenance": "IN_APP_CAMERA",
+      "captureApi": "SIMULATED"
+    },
+    "image": {
+      "mimeType": "image/jpeg",
+      "byteLength": 25072,
+      "width": 320,
+      "height": 240,
+      "sha256": "7cdf7533d3555044de2c3d4710e84685152ce278e9a1ad303e1f38e4b363b18e"
+    },
+    "location": {
+      "availability": "AVAILABLE",
+      "latitude": 16.3004,
+      "longitude": 80.4505,
+      "horizontalAccuracyM": 8,
+      "observedAtDeviceTime": "2026-10-13T05:48:40.713Z",
+      "fixAgeMs": 1500,
+      "provider": "gps",
+      "speedMps": 0.4,
+      "mockIndicator": false,
+      "mockIndicatorSource": "SIMULATED"
+    },
+    "cellular": {
+      "availability": "NOT_SUPPORTED",
+      "observations": []
+    },
+    "motion": {
+      "stepCounterAvailability": "AVAILABLE",
+      "stepsSinceBoot": 1200,
+      "stepsSinceDutyStart": null,
+      "motionState": "STILL"
+    },
+    "devicePosture": {
+      "debuggableBuild": false,
+      "rootIndicators": [],
+      "developerOptionsEnabled": null,
+      "adbEnabled": null,
+      "emulatorIndicators": ["SIMULATED_DEVICE"],
+      "appSigningCertSha256": null,
+      "keyHardwareBacked": false
+    },
+    "screenRecaptureRisk": {
+      "experimental": true,
+      "score": null,
+      "method": "not-run-on-simulator"
+    },
+    "derivatives": []
+  }
+}

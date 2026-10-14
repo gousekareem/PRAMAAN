@@ -1,0 +1,40 @@
+{
+  "measuredAt": "2026-10-13T06:09:33.724Z",
+  "node": "v22.22.0",
+  "platform": "linux x64",
+  "note": "Single-machine measurement; API, PostgreSQL and the client ran on the same host.",
+  "eventHashing": {
+    "events": 20000,
+    "totalMs": 467.4,
+    "eventsPerSecond": 42792
+  },
+  "evidenceSha256_8MiB": {
+    "n": 10,
+    "meanMs": 22.553,
+    "p50Ms": 21.294,
+    "p95Ms": 33.279,
+    "maxMs": 33.279
+  },
+  "spatialQuery": {
+    "n": 500,
+    "meanMs": 0.691,
+    "p50Ms": 0.553,
+    "p95Ms": 1.181,
+    "maxMs": 25.456
+  },
+  "batchIngestion50": {
+    "n": 20,
+    "meanMs": 177.192,
+    "p50Ms": 173.863,
+    "p95Ms": 217.482,
+    "maxMs": 217.482,
+    "eventsPerSecond": 282
+  },
+  "packageVerification": {
+    "n": 50,
+    "meanMs": 6.666,
+    "p50Ms": 6.514,
+    "p95Ms": 10.523,
+    "maxMs": 17.993
+  }
+}

@@ -1,0 +1,10 @@
+# The React Native app (apps/mobile) is intentionally NOT part of the pnpm
+# workspace: the RN Gradle plugin and autolinking expect a conventional
+# node_modules folder next to the Android project. It is installed with npm.
+packages:
+  - 'apps/api'
+  - 'apps/admin'
+  - 'packages/*'
+onlyBuiltDependencies:
+  - esbuild
+  - '@node-rs/argon2'

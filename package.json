@@ -1,0 +1,37 @@
+{
+  "name": "pramaan",
+  "version": "1.0.0",
+  "private": true,
+  "description": "PRAMAAN - Cryptographic Proof-of-Presence Engine (academic capstone prototype)",
+  "author": "SHAIK GOUSE KAREEM (https://www.linkedin.com/in/gousekareem/)",
+  "license": "SEE LICENSE IN LICENSE",
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "build:packages": "pnpm -r --filter \"./packages/*\" run build",
+    "build": "pnpm run build:packages && pnpm --filter @pramaan/api run build && pnpm --filter @pramaan/admin run build",
+    "typecheck": "pnpm run build:packages && pnpm -r --filter=!pramaan run typecheck",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "pnpm run build:packages && pnpm -r --filter=!pramaan run test",
+    "db:migrate": "pnpm --filter @pramaan/api run db:migrate",
+    "db:seed": "pnpm --filter @pramaan/api run db:seed",
+    "dev:api": "pnpm --filter @pramaan/api run dev",
+    "dev:admin": "pnpm --filter @pramaan/admin run dev",
+    "simulate": "pnpm --filter @pramaan/api run simulate",
+    "verify-package": "node packages/verifier/dist/cli.js",
+    "audit:deps": "pnpm audit --prod"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.5",
+    "eslint": "9.39.5",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "globals": "16.5.0",
+    "prettier": "3.6.2",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.71.2"
+  }
+}

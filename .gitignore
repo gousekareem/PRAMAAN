@@ -1,0 +1,32 @@
+node_modules/
+dist/
+build/
+coverage/
+*.log
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+.DS_Store
+# evidence storage and generated outputs (never commit evidence)
+apps/api/storage/
+storage/
+tmp/
+out/
+# Android
+apps/mobile/android/.gradle/
+apps/mobile/android/app/build/
+apps/mobile/android/build/
+apps/mobile/android/local.properties
+apps/mobile/android/app/*.keystore
+apps/mobile/android/keystore.properties
+*.jks
+.idea/
+*.iml
+.vscode/*
+!.vscode/extensions.json
+# backups
+backups/
+*.dump
+
+apps/mobile/android/app/debug.keystore

@@ -1,0 +1,26 @@
+{
+  "name": "@pramaan/validation",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Zod schemas for PRAMAAN sync batches, ledger events and event payloads (shared by API and mobile).",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "react-native": "src/index.ts",
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@pramaan/event-contracts": "workspace:*",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "vitest": "3.2.7"
+  }
+}

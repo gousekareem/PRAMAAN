@@ -1,0 +1,75 @@
+# Third-party notices
+
+PRAMAAN uses the following directly declared open-source packages (versions as resolved by the lockfiles at delivery). Each remains under its own licence and copyright; nothing in the PRAMAAN licence changes their terms. Transitive dependencies are listed in `pnpm-lock.yaml` and `apps/mobile/package-lock.json`; their licence texts are in each package under `node_modules` after installation. Map data © OpenStreetMap contributors (ODbL) when the default tile server is used. Fonts: IBM Plex (SIL Open Font License 1.1).
+
+| Package | Licence |
+|---|---|
+| @babel/core@7.28.5 | MIT |
+| @babel/plugin-transform-export-namespace-from@7.27.1 | MIT |
+| @babel/preset-env@7.28.5 | MIT |
+| @babel/runtime@7.28.4 | MIT |
+| @fontsource/ibm-plex-mono@5.2.7 | OFL-1.1 |
+| @fontsource/ibm-plex-sans@5.2.8 | OFL-1.1 |
+| @noble/hashes@1.8.0 | MIT |
+| @node-rs/argon2@2.0.2 | MIT |
+| @op-engineering/op-sqlite@15.2.14 | MIT |
+| @react-native-community/cli-platform-android@20.2.0 | MIT |
+| @react-native-community/cli@20.2.0 | MIT |
+| @react-native-community/netinfo@11.5.2 | MIT |
+| @react-native/babel-preset@0.87.1 | MIT |
+| @react-native/metro-config@0.87.1 | MIT |
+| @react-native/typescript-config@0.87.1 | MIT |
+| @react-navigation/native-stack@7.20.0 | MIT |
+| @react-navigation/native@7.5.0 | MIT |
+| @testing-library/jest-dom@6.10.0 | MIT |
+| @testing-library/react@16.3.0 | MIT |
+| @testing-library/user-event@14.6.1 | MIT |
+| @types/better-sqlite3@7.6.13 | MIT |
+| @types/busboy@1.5.4 | MIT |
+| @types/cookie-parser@1.4.9 | MIT |
+| @types/cors@2.8.19 | MIT |
+| @types/express@5.0.3 | MIT |
+| @types/geojson@7946.0.16 | MIT |
+| @types/leaflet@1.9.21 | MIT |
+| @types/node@22.20.5 | MIT |
+| @types/pdfkit@0.17.3 | MIT |
+| @types/pg@8.15.5 | MIT |
+| @types/react-dom@19.2.2 | MIT |
+| @types/react@19.2.2 | MIT |
+| @types/supertest@6.0.3 | MIT |
+| @vitejs/plugin-react@5.0.4 | MIT |
+| autoprefixer@10.4.21 | MIT |
+| better-sqlite3@12.4.1 | MIT |
+| busboy@1.6.0 | see package |
+| cookie-parser@1.4.7 | MIT |
+| cors@2.8.5 | MIT |
+| express-rate-limit@8.7.1 | MIT |
+| express@5.1.0 | MIT |
+| fflate@0.8.3 | MIT |
+| helmet@8.1.0 | MIT |
+| jose@6.1.0 | MIT |
+| jpeg-js@0.4.4 | BSD-3-Clause |
+| jsdom@26.1.0 | MIT |
+| leaflet@1.9.4 | BSD-2-Clause |
+| pdfkit@0.17.2 | MIT |
+| pg@8.16.3 | MIT |
+| pino-http@10.5.0 | MIT |
+| pino@9.13.1 | MIT |
+| postcss@8.5.30 | MIT |
+| postcss@8.5.6 | MIT |
+| react-dom@19.2.3 | MIT |
+| react-leaflet@5.0.0 | Hippocratic-2.1 |
+| react-native-get-random-values@2.0.0 | MIT |
+| react-native-safe-area-context@5.10.1 | MIT |
+| react-native-screens@4.29.0 | MIT |
+| react-native@0.87.1 | MIT |
+| react-router-dom@7.18.4 | MIT |
+| react@19.2.3 | MIT |
+| supertest@7.1.4 | MIT |
+| tailwindcss@3.4.18 | MIT |
+| tsx@4.20.6 | MIT |
+| typescript@5.9.3 | Apache-2.0 |
+| vite@7.1.12 | MIT |
+| vite@7.3.7 | MIT |
+| vitest@3.2.7 | MIT |
+| zod@4.6.7 | MIT |

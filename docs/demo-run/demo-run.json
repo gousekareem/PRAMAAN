@@ -1,0 +1,128 @@
+{
+  "api": "http://localhost:4000",
+  "ranAt": "2026-10-13T06:36:41.551Z",
+  "simulated": true,
+  "deviceId": "788cf266-8234-4db9-91c3-a4bbc24ec8b0",
+  "steps": [
+    {
+      "step": 1,
+      "title": "API readiness (/ready)",
+      "outcome": "HTTP 200 {\"database\":\"ok\",\"postgis\":\"3.4.2\",\"migrations\":\"5\",\"storage\":\"ok\"}"
+    },
+    {
+      "step": 2,
+      "title": "Officer signs in on the (simulated) duty device",
+      "outcome": "HTTP 200; refresh token returned to device only"
+    },
+    {
+      "step": 3,
+      "title": "Register demonstration device public key",
+      "outcome": "HTTP 201; status PENDING; fingerprint 9e06f2651f9591fb…"
+    },
+    {
+      "step": 4,
+      "title": "Sync before administrator approval is refused",
+      "outcome": "HTTP 403 DEVICE_NOT_APPROVED"
+    },
+    {
+      "step": 5,
+      "title": "Administrator approves the device (fingerprint verified out of band)",
+      "outcome": "HTTP 200 ACTIVE"
+    },
+    {
+      "step": 6,
+      "title": "Start duty session, record location and capture evidence; sync online",
+      "outcome": "HTTP 200 counts={\"accepted\":3,\"duplicate\":0,\"rejected\":0,\"conflict\":0} head=#3"
+    },
+    {
+      "step": 7,
+      "title": "Upload evidence bytes; server recomputes SHA-256",
+      "outcome": "HTTP 200 VERIFIED"
+    },
+    {
+      "step": 8,
+      "title": "Inspect the local manifest and hash",
+      "outcome": "image SHA-256 7cdf7533d3555044…, written to local-manifest-example.json"
+    },
+    {
+      "step": 9,
+      "title": "Network disconnected: device records check-in (missed → late), transit, locations, a mock-location fix, evidence and a clock anomaly locally",
+      "outcome": "11 events queued (seq 4..14); nothing sent"
+    },
+    {
+      "step": 10,
+      "title": "App/service restart while offline (simulated)",
+      "outcome": "Queue is held in the persistent outbox; sequence numbers continue (see mobile tests \"never resets sequence numbers\")"
+    },
+    {
+      "step": 11,
+      "title": "Network restored: queued batch synchronised",
+      "outcome": "HTTP 200 counts={\"accepted\":11,\"duplicate\":0,\"rejected\":0,\"conflict\":0} serverReceivedAt=2026-10-13T06:36:41.059Z"
+    },
+    {
+      "step": 12,
+      "title": "Duplicate upload of the same batch (e.g. response lost)",
+      "outcome": "HTTP 200 replayed=true; no duplicate records"
+    },
+    {
+      "step": 13,
+      "title": "Same events re-sent in a new batch",
+      "outcome": "statuses=DUPLICATE,DUPLICATE,DUPLICATE"
+    },
+    {
+      "step": 14,
+      "title": "Upload second evidence (periodic pattern)",
+      "outcome": "HTTP 200 VERIFIED"
+    },
+    {
+      "step": 15,
+      "title": "Deliberately corrupted event payload (coordinates edited after signing)",
+      "outcome": "REJECTED EVENT_HASH_MISMATCH"
+    },
+    {
+      "step": 16,
+      "title": "Forged client hash (recomputed, but old signature)",
+      "outcome": "REJECTED INVALID_SIGNATURE"
+    },
+    {
+      "step": 17,
+      "title": "Corrupted evidence bytes uploaded",
+      "outcome": "HTTP 422 EVIDENCE_HASH_MISMATCH (quarantined, original declaration preserved)"
+    },
+    {
+      "step": 18,
+      "title": "Dashboard observation (last known)",
+      "outcome": "RECENTLY_RECEIVED ; spatial=INSIDE_ASSIGNED_ZONE; accuracy=8 m"
+    },
+    {
+      "step": 19,
+      "title": "Review flags raised for supervisor (prompts, not conclusions)",
+      "outcome": "CHAIN_LINK_MISMATCH, CHECKIN_LATE, CHECKIN_MISSED, CLOCK_ANOMALY, DEVICE_REGISTRATION, EVIDENCE_HASH_MISMATCH, INVALID_DEVICE_SIGNATURE, MOCK_LOCATION_INDICATOR, SCREEN_RECAPTURE_RISK, SPATIAL_ZONE_EXCEPTION"
+    },
+    {
+      "step": 20,
+      "title": "PostGIS spatial-zone checks on synchronised observations",
+      "outcome": "EVIDENCE_CAPTURED:INSIDE_ASSIGNED_ZONE | EVIDENCE_CAPTURED:INSIDE_ASSIGNED_ZONE | LOCATION_OBSERVED:INSIDE_ASSIGNED_ZONE | LOCATION_OBSERVED:OUTSIDE_ASSIGNED_ZONE(404.9 m) | EVIDENCE_CAPTURED:INSIDE_ASSIGNED_ZONE | LOCATION_OBSERVED:INSIDE_ASSIGNED_ZONE"
+    },
+    {
+      "step": 21,
+      "title": "Export evidence package and verify it independently (no API/dashboard involved)",
+      "outcome": "PASS; 17 checks; package SHA-256 2aec26dfcc6155a3…"
+    },
+    {
+      "step": 22,
+      "title": "Modify ONE bit of the image in a copy of the package and verify again",
+      "outcome": "FAIL: file.evidence/original.jpg, image.sha256"
+    },
+    {
+      "step": 23,
+      "title": "Generate evidence report PDF",
+      "outcome": "HTTP 200, 4529 bytes"
+    },
+    {
+      "step": 24,
+      "title": "Verify the server audit (chain-of-custody) hash chain",
+      "outcome": "ok=true; 17 records; head #17"
+    }
+  ]
+}
