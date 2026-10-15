@@ -1,10 +1,20 @@
 # PRAMAAN — Windows Development and Render Deployment Guide
 
-Version 1.0 · 2026-10-13 · Developed by SHAIK GOUSE KAREEM (https://www.linkedin.com/in/gousekareem/)
+Version 2.0 (railway-police operations upgrade) · 2026-10-15 · Developed by SHAIK GOUSE KAREEM (https://www.linkedin.com/in/gousekareem/)
 
 > Academic prototype. This guide describes how to run and deploy it; it is **not** evidence that a
 > deployment exists. Commands were written for Windows 10/11 PowerShell. Steps that were executed in the
 > authoring environment (Linux) are marked ✅; steps that could not be executed there are marked ⚠️.
+
+**What changed in 2.0:**
+* migrations `0006`–`0007` (applied by `pnpm db:migrate`, upgrade-safe);
+* new demo accounts `*@parmaan.demo` (B6a);
+* new commands `pnpm db:reset-demo` and `pnpm scenarios`;
+* new environment variables `ALLOW_DEMO_LOGIN`, `EXCEPTION_EVALUATOR_INTERVAL_SECONDS` and
+  `BACKUP_VERIFICATION_FILE`;
+* the local Docker database is published on **host port 5433**, as in your `docker-compose.yml`.
+
+Upgrading an existing installation: B3a.
 
 **Conventions.** `PS C:\src\pramaan>` means *run from the repository root*. Sub-directory prompts are shown
 explicitly, e.g. `PS C:\src\pramaan\apps\mobile>`. Always open a **new** PowerShell window after changing
@@ -103,22 +113,43 @@ migrations and seeds the **synthetic** demo data. Options: `-SkipDocker` (own Po
 PS C:\src\pramaan> Copy-Item .env.example .env
 PS C:\src\pramaan> node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 #   → paste the output as JWT_ACCESS_SECRET=... in .env (notepad .env)
-PS C:\src\pramaan> corepack enable
+PS C:\src\pramaan> corepack enable                       # or use the bundled .\pnpm.cmd wrapper (corepack pnpm@10.28.0)
 PS C:\src\pramaan> pnpm install --frozen-lockfile
 PS C:\src\pramaan> pnpm run build:packages
 PS C:\src\pramaan> docker compose up -d db
 PS C:\src\pramaan> docker compose ps                     # pramaan-db ... (healthy)
-PS C:\src\pramaan> pnpm db:migrate                        # applies database\migrations\0001..0005
-PS C:\src\pramaan> pnpm db:seed                           # synthetic DEMO data (needs ALLOW_DEMO_SEED=true)
+PS C:\src\pramaan> pnpm db:migrate                        # applies database\migrations\0001..0007
+PS C:\src\pramaan> pnpm db:seed                           # synthetic DEMO data (needs ALLOW_DEMO_SEED=true); prints the demo logins
 ```
-`pnpm db:seed -- --reset` drops all PRAMAAN tables and re-seeds (demo reset; development only).
+**Demo-data reset (development only — drops ALL PRAMAAN tables):**
+```powershell
+PS C:\src\pramaan> pnpm db:reset-demo                                        # = pnpm db:seed -- --reset
+PS C:\src\pramaan> pnpm db:seed -- --reset --reference-date 2026-10-15        # reproducible dataset for that IST date
+```
+The generator is deterministic. With the same reference date it produces the same personnel, units, duties,
+instructions, handover and unavailability. Without one, “today” in Asia/Kolkata is used. Never run a reset
+against a database holding real data.
+
+### B3a. Upgrading an existing PRAMAAN 1.0 installation ✅ (executed on the 1.0 demo database)
+```powershell
+PS C:\src\pramaan> # 1. stop the API (Ctrl+C in its window) and take a backup (B10)
+PS C:\src\pramaan> pnpm install --frozen-lockfile
+PS C:\src\pramaan> pnpm run build:packages
+PS C:\src\pramaan> pnpm db:migrate        # applies only 0006_rbac_personnel.sql and 0007_duty_operations.sql
+PS C:\src\pramaan> pnpm db:verify-audit   # must print "ok": true — existing audit history is untouched
+PS C:\src\pramaan> pnpm db:seed           # optional (demo DBs only): adds units, personnel, rank accounts and duties
+PS C:\src\pramaan> pnpm dev:api
+```
+Existing ranks are mapped (`CONSTABLE → PC`, `HEAD_CONSTABLE → HC`, `INSPECTOR → CI`). Existing accounts keep
+their roles and behaviour, and devices, events, evidence and flags are unchanged. Personnel without a unit
+are visible only to global roles until an administrator assigns a unit.
 
 ### B4. Environment variables (`.env`, API)
 | Variable | Development value | Production (Render) |
 |---|---|---|
 | `NODE_ENV` | development | production |
 | `PORT` / `HOST` | 4000 / 0.0.0.0 | set by Render / 0.0.0.0 |
-| `DATABASE_URL` | `postgres://pramaan:pramaan_dev_only@localhost:5432/pramaan` | Render **internal** connection string |
+| `DATABASE_URL` | `postgres://pramaan:pramaan_dev_only@localhost:5433/pramaan` | Render **internal** connection string |
 | `DATABASE_SSL_MODE` | disable | disable (private network) or verify-full (external URL + CA) |
 | `JWT_ACCESS_SECRET` | random 48 bytes | `generateValue` (≥ 32 chars, no placeholder words) |
 | `ACCESS_TOKEN_TTL_SECONDS` / `REFRESH_TOKEN_TTL_DAYS` | 900 / 7 | same |
@@ -129,8 +160,11 @@ PS C:\src\pramaan> pnpm db:seed                           # synthetic DEMO data 
 | `MAX_EVIDENCE_BYTES` / `MAX_JSON_BODY_BYTES` | 8388608 / 2097152 | same |
 | `RATE_LIMIT_*` | 600 / 10 / 120 | same or stricter |
 | `RUN_MIGRATIONS_ON_START` | false | false when a pre-deploy command is used; true otherwise |
-| `ALLOW_DEMO_SEED` / `SEED_DEMO_PASSWORD` | true / dev-only password | **false** / unset |
-| `TEST_DATABASE_ADMIN_URL` | `postgres://pramaan:pramaan_dev_only@localhost:5432/postgres` | — |
+| `ALLOW_DEMO_SEED` / `SEED_DEMO_PASSWORD` | true / dev-only password (PRAMAAN 1.0 demo accounts) | **false** / unset |
+| `ALLOW_DEMO_LOGIN` | unset (= allowed outside production) | **unset or false**. `true` lets demo accounts sign in; logged as an explicit decision |
+| `EXCEPTION_EVALUATOR_INTERVAL_SECONDS` | 60 | 60 (0 disables the timer) |
+| `BACKUP_VERIFICATION_FILE` | optional, e.g. `./backups/backup-verification.json` | path on the persistent disk, if drills are run there |
+| `TEST_DATABASE_ADMIN_URL` | `postgres://pramaan:pramaan_dev_only@localhost:5433/postgres` | — |
 
 Dashboard (`apps\admin\.env.local`, public — never secrets): `VITE_API_BASE_URL`, `VITE_MAP_TILE_URL`,
 `VITE_MAP_ATTRIBUTION`. Mobile: Gradle property `pramaanApiBaseUrl` (see B8).
@@ -141,7 +175,7 @@ PS C:\src\pramaan> pnpm dev:api
 # new window:
 PS C:\src\pramaan> .\scripts\check-health.ps1 -ApiUrl http://localhost:4000
 #   /health  HTTP 200  {"status":"ok",...}
-#   /ready   HTTP 200  {"status":"ready","checks":{"database":"ok","postgis":"3.4.x","migrations":"5","storage":"ok"}}
+#   /ready   HTTP 200  {"status":"ready","checks":{"database":"ok","postgis":"3.4.x","migrations":"7","storage":"ok"}}
 ```
 Production-style run: `pnpm --filter @pramaan/api build` then `node apps\api\dist\server.js`.
 
@@ -149,8 +183,25 @@ Production-style run: `pnpm --filter @pramaan/api build` then `node apps\api\dis
 ```powershell
 PS C:\src\pramaan> pnpm dev:admin                  # http://localhost:5173
 ```
-Sign in with `supervisor@pramaan.demo` (or `admin@` / `reviewer@`) and the `SEED_DEMO_PASSWORD` from `.env`.
-Officer accounts (`officer1@`, `officer2@`) can only sign in on the mobile app.
+Sign in with one of the rank demonstration accounts. The navigation adapts to each account's permissions.
+
+### B6a. Demonstration accounts (local / test environments only)
+| Role | Login | Password | Lands on |
+|---|---|---|---|
+| HG — Home Guard | `hg@parmaan.demo` | `hg-parmaan.demo` | My duties |
+| PC — General Constable | `pc@parmaan.demo` | `pc-parmaan.demo` | My duties |
+| PC — AR Constable | `pc.ar@parmaan.demo` | `pc.ar-parmaan.demo` | My duties |
+| HC — Head Constable | `hc@parmaan.demo` | `hc-parmaan.demo` | Overview (station) |
+| ASI — Assistant Sub-Inspector | `asi@parmaan.demo` | `asi-parmaan.demo` | Overview (station) |
+| SI — Sub-Inspector | `si@parmaan.demo` | `si-parmaan.demo` | Overview (station) |
+| CI — Circle Inspector | `ci@parmaan.demo` | `ci-parmaan.demo` | Overview (circle) |
+| DSP — Deputy Superintendent of Police | `dsp@parmaan.demo` | `dsp-parmaan.demo` | Overview (sub-division) |
+| System administrator (additional; not a rank) | `admin@parmaan.demo` | `admin-parmaan.demo` | Overview + administration |
+
+The PRAMAAN 1.0 accounts (`admin|supervisor|reviewer@pramaan.demo` on the web, `officer1|officer2@pramaan.demo` on
+the device only) still work with `SEED_DEMO_PASSWORD`. These credentials are for local demonstrations only.
+Production refuses demo seeding and demo logins (see B4). A per-rank walkthrough and a five-minute script are in
+`docs\demo-script.md`.
 
 ### B7. Simulated end-to-end demo (no phone needed) ✅
 ```powershell
@@ -158,6 +209,17 @@ PS C:\src\pramaan> pnpm simulate -- --api http://localhost:4000 --password Demo-
 PS C:\src\pramaan> node packages\verifier\dist\cli.js (Get-ChildItem .\out\demo\sample-evidence-package-*.zip | Where-Object Name -notlike '*TAMPERED*').FullName
 PS C:\src\pramaan> node packages\verifier\dist\cli.js .\out\demo\sample-evidence-package-TAMPERED.zip   # RESULT: FAIL
 ```
+
+### B7a. Scenario demonstration (simulated devices) ✅
+```powershell
+PS C:\src\pramaan> pnpm db:reset-demo
+PS C:\src\pramaan> pnpm dev:api                 # restart the API after a reset
+PS C:\src\pramaan> pnpm scenarios -- --api http://localhost:4000 --out .\out\scenarios
+```
+42 checks: four categories, train beat with check-ins and a missed check-in, station watch with offline sync,
+replay and duplicates, overlapping assignment, inactive personnel, VIP restriction, incident evidence and
+tampering, unauthorised access, exception review, audited correction, reports and audit chain. Output:
+`out\scenarios\scenarios-run.json`, report PDFs and an evidence package. Devices are simulated.
 
 ### B8. Build and run the Android app ⚠️ (not executed in the authoring environment)
 ```powershell
@@ -204,16 +266,26 @@ PS C:\src\pramaan> docker compose cp db:/tmp/pramaan.dump .\backups\pramaan.dump
 PS C:\src\pramaan> Get-FileHash .\backups\pramaan.dump -Algorithm SHA256
 PS C:\src\pramaan> docker compose exec -T db psql -U pramaan -d postgres -c "DROP DATABASE IF EXISTS pramaan_restore_check" -c "CREATE DATABASE pramaan_restore_check"
 PS C:\src\pramaan> docker compose exec -T db pg_restore -U pramaan -d pramaan_restore_check --no-owner --exit-on-error /tmp/pramaan.dump
-PS C:\src\pramaan> $env:DATABASE_URL='postgres://pramaan:pramaan_dev_only@localhost:5432/pramaan_restore_check'; pnpm db:verify-audit; Remove-Item Env:DATABASE_URL
+PS C:\src\pramaan> $env:DATABASE_URL='postgres://pramaan:pramaan_dev_only@localhost:5433/pramaan_restore_check'; pnpm db:verify-audit; Remove-Item Env:DATABASE_URL
 ```
-`db:verify-audit` must print `"ok": true`. On Linux/macOS/WSL use `scripts/backup-restore-check.sh`, which
-also compares row counts and checks every evidence reference ✅ (result: `docs/results/backup-restore-check.txt`).
+`db:verify-audit` must print `"ok": true`. On Linux/macOS/WSL/Git Bash use `scripts/backup-restore-check.sh`,
+which also compares row counts (including the 2.0 duty tables) and checks every evidence reference ✅ (result:
+`docs/results/backup-restore-check.txt`):
+```bash
+SOURCE_URL=postgres://pramaan:pramaan_dev_only@localhost:5433/pramaan \
+ADMIN_URL=postgres://pramaan:pramaan_dev_only@localhost:5433/postgres \
+EVIDENCE_DIR=apps/api/storage/evidence OUT=./backups bash scripts/backup-restore-check.sh
+```
+It writes `backups/backup-verification.json` (`"passed": true|false`). Set `BACKUP_VERIFICATION_FILE` to that
+path and restart the API: **System status** then shows the last drill result. Without that file the page shows
+“not available”. `EVIDENCE_DIR` must be the API's `EVIDENCE_STORAGE_DIR`; a wrong path is reported as missing
+objects and the drill fails, which is intended.
 
 ### B11. Troubleshooting
 | Symptom | Fix |
 |---|---|
 | `pnpm` not found | `corepack enable` (Administrator PowerShell once) |
-| `ECONNREFUSED 127.0.0.1:5432` | `docker compose up -d db`; check Docker Desktop is running |
+| `ECONNREFUSED 127.0.0.1:5433` | `docker compose up -d db`; check Docker Desktop is running |
 | Migration error `extension "postgis" is not available` | Use the `postgis/postgis` image or install the PostGIS bundle; plain PostgreSQL lacks it |
 | `Invalid configuration: JWT_ACCESS_SECRET` | Must be ≥ 32 characters |
 | Dashboard shows "Server unreachable" | API not running, wrong `VITE_API_BASE_URL`, or origin missing from `CORS_ORIGINS` |
@@ -224,6 +296,12 @@ also compares row counts and checks every evidence reference ✅ (result: `docs/
 | op-sqlite / SQLCipher compile errors | `cd apps\mobile\android; .\gradlew.bat clean`, delete `apps\mobile\android\app\.cxx`, rebuild |
 | Metro: `Unable to resolve module @pramaan/event-contracts` | Run from `apps\mobile` (metro.config.js maps the shared packages); `npx react-native start --reset-cache` |
 | `Export namespace should be first transformed` | `npm ci` in `apps\mobile` (installs `@babel/plugin-transform-export-namespace-from`) |
+| `migrations` shows 5 / new pages return 404 from the API | `pnpm db:migrate` was not run after upgrading (B3a) |
+| `Migration 0007_… was modified after being applied` | A pre-release copy of 0007 was applied to this database; on a demo DB run `pnpm db:reset-demo` |
+| Rank account login → “Invalid email or password” in production | Expected: demo accounts are refused unless `ALLOW_DEMO_LOGIN=true` (not recommended) |
+| “Not authorised to open this page” or 404 for another unit's record | Expected permission/scope behaviour; check the account's role on **Account & sessions** |
+| Roster/duties empty for a supervisor | The account's personnel record has no unit or the unit tree is incomplete (Personnel → Edit record) |
+| `password authentication failed` / `ECONNREFUSED …:5432` | The Docker database is on host port **5433**; use the `.env.example` URLs |
 | Check-ins arrive late | Allow exact alarms and exclude PRAMAAN from battery optimisation (Settings screen); OEM limits remain |
 
 ---
@@ -313,8 +391,13 @@ PS C:\src\pramaan> $env:PRAMAAN_NEW_PASSWORD = Read-Host 'New admin password'
 PS C:\src\pramaan> node apps\api\dist\tools\create-user.js --email admin@your-unit.example --name "System Administrator" --role ADMIN
 PS C:\src\pramaan> Remove-Item Env:PRAMAAN_NEW_PASSWORD, Env:DATABASE_URL, Env:DATABASE_SSL_MODE
 ```
-For officers add `--role OFFICER --officer-ref GRP-PC-0001 --rank CONSTABLE --station "<station>"`
-(creates the pseudonymous officer row too). Remove your IP from the allow-list afterwards.
+Create units and personnel records in the dashboard as this administrator (Personnel → Add personnel). Then
+create the rank accounts on **Login accounts**, or with the CLI:
+`--role SI --personnel-ref GRP-SI-0001` (link to an existing record), or
+`--role PC --personnel-ref GRP-PC-0002 --create-personnel --rank PC --constable-category AR --unit-code ST-01`.
+Home Guards use `--personnel-category HOME_GUARD` with no rank. Remove your IP from the allow-list
+afterwards. Review the default role permissions and duty-category policy (**Duty policy & roles**) with the
+department **before** creating real accounts.
 
 ### D5. Health checks and logs
 ```powershell
@@ -356,11 +439,11 @@ embedded in the APK — only the public API URL.
 ## Part E — Production-readiness checklist
 | # | Item | How to verify |
 |---|---|---|
-| 1 | Migrations applied | `/ready` → `"migrations":"5"` |
+| 1 | Migrations applied | `/ready` → `"migrations":"7"` |
 | 2 | PostGIS present | `/ready` → `"postgis":"3.x"` |
 | 3 | Database backups configured | Render database → Backups |
 | 4 | Admin password changed / strong | first admin created per D4; no `@pramaan.demo` accounts exist (`SELECT count(*) FROM app_users WHERE is_demo`) = 0 |
-| 5 | Demo seeding disabled | `ALLOW_DEMO_SEED=false` (API refuses to start otherwise) |
+| 5 | Demo seeding and demo logins disabled | `ALLOW_DEMO_SEED=false` (API refuses to start otherwise); `ALLOW_DEMO_LOGIN` unset/false; System status → “Demo accounts can sign in: no”; `SELECT count(*) FROM app_users WHERE is_demo` = 0 |
 | 6 | TLS verified | `https://` URLs; HSTS header present |
 | 7 | CORS restricted | `CORS_ORIGINS` = dashboard origin only |
 | 8 | Secrets configured | `JWT_ACCESS_SECRET` generated; no secrets in `VITE_*` |
@@ -373,3 +456,6 @@ embedded in the APK — only the public API URL.
 | 15 | Android release build installed and tested | device checklist completed on target phones |
 | 16 | Sync tested against the deployed service | offline → online on a real device; dashboard shows delayed sync |
 | 17 | Legal/organisational approval | outside the software — required before real use |
+| 18 | Role permissions, scopes, eligibility and check-in policy validated by the department | Duty policy & roles page reviewed and changed as required; record the decision |
+| 19 | Unit tree and personnel units correct | every supervisor's scope shows only their units (log in and check Personnel) |
+| 20 | Backup drill recorded | System status → Backup verification “verified” with a recent date |

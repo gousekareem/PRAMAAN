@@ -11,9 +11,9 @@ is treated as proof of presence or misconduct.
 |---|---|---|---|
 | Duty app (Android) | `apps/mobile` | React Native 0.87 (CLI) + Kotlin | Check-ins, biometric gate, in-app camera, sensors, encrypted ledger, sync |
 | Native modules | `apps/mobile/android/app/src/main/java/com/pramaan/mobile` | Kotlin, CameraX, BiometricPrompt, Keystore | Keys, signing, sealing, foreground service, alarms |
-| API | `apps/api` | Node 22, Express 5, `pg` | Auth/RBAC, idempotent ingestion, verification, PostGIS, exports, SSE |
+| API | `apps/api` | Node 22, Express 5, `pg` | Auth, permission/scope enforcement, duty operations (2.0), idempotent ingestion, verification, PostGIS, reports/exports, SSE |
 | Database | `database/` | PostgreSQL 16 + PostGIS 3.4 | Original observations (append-only), derived records, audit chain |
-| Dashboard | `apps/admin` | React 19, Vite, Tailwind, React-Leaflet | Supervisor review, alerts workflow, evidence verification, exports |
+| Dashboard | `apps/admin` | React 19, Vite, Tailwind, React-Leaflet | Permission-based views for every rank: duties, roster, personnel, check-ins, exceptions, evidence, reports, administration |
 | Shared contracts | `packages/event-contracts` | TypeScript | Canonical JSON, hashing, chain, clock, movement rules, screen-risk |
 | Validation | `packages/validation` | zod | Envelope, payload and manifest schemas |
 | Verifier | `packages/verifier` | TypeScript CLI | Offline verification of exported evidence packages |
@@ -100,3 +100,26 @@ sequenceDiagram
 | Kotlin native modules | Implemented but Not Verified (not compiled against the Android SDK here; 7 pure-JVM tests of crypto/posture logic pass) |
 | Physical-device behaviour (biometric, camera, Keystore, sensors, foreground service, SQLCipher at runtime) | Implemented but Not Verified — requires a physical Android device (see `docs/device-test-checklist.md`) |
 | Render deployment | Configuration provided; **not deployed** (no credentials) |
+
+
+## PRAMAAN 2.0 operations layer
+
+```mermaid
+flowchart LR
+  subgraph Web["Dashboard (permission-based navigation)"]
+    MY["My duties<br/>HG / PC / PC-AR"] --- OPS["Duty assignments · roster · check-ins<br/>HC / ASI / SI / CI"] --- AGG["Overview · reports · audit<br/>DSP"] --- ADM["Accounts · policy · system status<br/>ADMIN"]
+  end
+  Web -->|"Bearer token (user id only)"| AUTH["requireAuth: re-read role, permissions,<br/>scope, active status from DB"]
+  AUTH --> PERM["requirePermission + SQL scope filters<br/>+ restricted-duty redaction"]
+  PERM --> DUTY["Duty service: categories, eligibility, conflicts,<br/>state machine, instructions, handovers"]
+  DUTY -->|"publish"| SESS["Per-person duty_sessions"]
+  SESS -->|"unchanged 1.0 pipeline"| ING["Device ingestion: signed check-ins, evidence, locations"]
+  ING -->|"DUTY_SESSION_STARTED"| DUTY
+  ING --> EXC["Exceptions + evaluator<br/>(delayed reporting, overdue, sync failure)"]
+  DUTY --> HIST[("Append-only change history<br/>+ hash-linked audit")]
+  EXC --> NOTE["Notes · resolution · corrections"]
+```
+
+The duty layer does not replace the evidence engine. Every assigned person gets an individual 1.0 duty
+session, so signed device events keep flowing through the same verified ingestion path, now linked back to
+the operational duty. See `railway-operations.md` and `authorization.md`.

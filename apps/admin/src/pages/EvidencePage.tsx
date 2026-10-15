@@ -1,28 +1,49 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api, qs } from '../services/api';
 import type { EvidenceListItem, Page } from '../services/types';
 import { useApi } from '../hooks/useApi';
 import { useRefreshOnChange } from '../hooks/useRefreshOnChange';
 import { HashText, PageHeader, Pagination, formatTime } from '../components/ui/Misc';
 import { EmptyState, ErrorState, LoadingState } from '../components/ui/States';
-import { Badge, DemoBadge, StatusBadge } from '../components/ui/Badges';
+import { Badge, DemoBadge } from '../components/ui/Badges';
+import { CategoryBadge } from '../components/ops/Ops';
+import { tCode } from '../i18n';
+import type { DutyCategory } from '../services/types';
+
+/**
+ * Evidence states as seen by the server. "Pending on device" cannot be observed here; the
+ * duty app shows it until the event synchronises.
+ */
+export function EvidenceStateBadge({ status, attempts }: { status: string; attempts?: number }) {
+  if (status === 'VERIFIED') return <Badge tone="ok">Verified (hash matches)</Badge>;
+  if (status === 'QUARANTINED') return <Badge tone="bad">Failed integrity check</Badge>;
+  if (status === 'AWAITING_UPLOAD' && (attempts ?? 0) >= 5)
+    return <Badge tone="bad" title="Upload attempts exhausted">Incomplete (upload limit reached)</Badge>;
+  if (status === 'AWAITING_UPLOAD') return <Badge tone="warn">Synchronised · image pending</Badge>;
+  return <Badge tone="muted">{status}</Badge>;
+}
 
 export function EvidencePage() {
   const [page, setPage] = useState(1);
-  const [status, setStatus] = useState('');
+  const [params] = useSearchParams();
+  const [status, setStatus] = useState(params.get('status') ?? '');
+  const [category, setCategory] = useState('');
   const [hash, setHash] = useState('');
   const validHash = /^[0-9a-f]{4,64}$/.test(hash) ? hash : '';
   const { data, error, loading, reload } = useApi(
-    () => api<Page<EvidenceListItem>>(`/api/v1/evidence${qs({ page, status, hash: validHash })}`),
-    [page, status, validHash],
+    () =>
+      api<Page<EvidenceListItem & { assignment: { id: string; referenceCode: string; category: DutyCategory } | null; uploadAttempts?: number }>>(
+        `/api/v1/evidence${qs({ page, status, hash: validHash, category })}`,
+      ),
+    [page, status, validHash, category],
   );
   useRefreshOnChange(reload);
   return (
     <>
       <PageHeader
-        title="Evidence"
-        subtitle="Server-verified status reflects a SHA-256 comparison of received bytes with the signed declaration. It does not prove the scene was genuine."
+        title="Evidence verification"
+        subtitle="Server-verified status reflects a SHA-256 comparison of received bytes with the signed declaration. Integrity is not proof that the scene was genuine or that anyone was physically present. Evidence of restricted duties is visible only to authorised users."
       />
       <div className="mb-3 flex flex-wrap gap-3 text-sm">
         <label>
@@ -38,7 +59,25 @@ export function EvidencePage() {
             <option value="">All</option>
             <option value="VERIFIED">Verified</option>
             <option value="AWAITING_UPLOAD">Awaiting upload</option>
-            <option value="QUARANTINED">Quarantined</option>
+            <option value="QUARANTINED">Failed (quarantined)</option>
+          </select>
+        </label>
+        <label>
+          Duty category
+          <select
+            className="input mt-1 block"
+            value={category}
+            onChange={(e) => {
+              setPage(1);
+              setCategory(e.target.value);
+            }}
+          >
+            <option value="">All</option>
+            {(['TRAIN_BEAT', 'STATION_WATCH', 'VIP_ESCORT', 'TRACK_INCIDENT'] as const).map((c) => (
+              <option key={c} value={c}>
+                {tCode('category', c)}
+              </option>
+            ))}
           </select>
         </label>
         <label>
@@ -64,7 +103,7 @@ export function EvidencePage() {
             <thead>
               <tr>
                 <th>Evidence</th>
-                <th>Officer</th>
+                <th>Personnel / duty</th>
                 <th>Captured (device clock)</th>
                 <th>Received (server)</th>
                 <th>Status</th>
@@ -82,11 +121,19 @@ export function EvidencePage() {
                   </td>
                   <td>
                     {e.officerName} <DemoBadge show={e.isDemo} />
+                    {e.assignment && (
+                      <p className="mt-1 flex flex-wrap items-center gap-1 text-xs">
+                        <Link to={`/duties/${e.assignment.id}`} className="font-mono underline">
+                          {e.assignment.referenceCode}
+                        </Link>
+                        <CategoryBadge category={e.assignment.category} />
+                      </p>
+                    )}
                   </td>
                   <td>{formatTime(e.capturedAtDevice)}</td>
                   <td>{formatTime(e.serverReceivedAt)}</td>
                   <td>
-                    <StatusBadge value={e.status} />
+                    <EvidenceStateBadge status={e.status} attempts={e.uploadAttempts} />
                   </td>
                   <td>
                     <HashText value={e.imageSha256} short />

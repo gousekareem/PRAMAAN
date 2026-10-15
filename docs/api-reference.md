@@ -11,11 +11,11 @@ Every response carries `X-Request-Id` (a valid client-supplied one is echoed for
 
 | HTTP | Codes |
 |---|---|
-| 400 | `VALIDATION_FAILED` |
+| 400 | `VALIDATION_FAILED`, `NOT_ELIGIBLE`, `INACTIVE_PERSONNEL` |
 | 401 | `AUTHENTICATION_REQUIRED`, `INVALID_CREDENTIALS`, `TOKEN_EXPIRED`, `TOKEN_INVALID` |
-| 403 | `FORBIDDEN`, `DEVICE_NOT_REGISTERED`, `DEVICE_NOT_APPROVED`, `DEVICE_REVOKED` |
+| 403 | `FORBIDDEN`, `SELF_MODIFICATION_FORBIDDEN`, `DEVICE_NOT_REGISTERED`, `DEVICE_NOT_APPROVED`, `DEVICE_REVOKED` |
 | 404 | `NOT_FOUND`, `EVIDENCE_EVENT_NOT_FOUND` |
-| 409 | `CONFLICT`, `IDEMPOTENCY_KEY_REUSED` |
+| 409 | `CONFLICT`, `IDEMPOTENCY_KEY_REUSED`, `ASSIGNMENT_CONFLICT` (details.conflicts), `INVALID_TRANSITION` |
 | 413 | `PAYLOAD_TOO_LARGE`, `EVIDENCE_TOO_LARGE` |
 | 422 | `UNSUPPORTED_SCHEMA_VERSION`, `EVIDENCE_HASH_MISMATCH` |
 | 423 | `ACCOUNT_LOCKED` |
@@ -24,6 +24,17 @@ Every response carries `X-Request-Id` (a valid client-supplied one is echoed for
 | 503 | `DATABASE_UNAVAILABLE` (with `Retry-After`) |
 
 Stack traces, SQL and secrets are never returned.
+
+## Authorisation in PRAMAAN 2.0
+The “Roles” column of the PRAMAAN 1.0 table below describes the **default** behaviour. Since 2.0 every route
+checks **permissions** loaded from the database (`requirePermission`), and every query is limited to the caller's
+**data scope** (SELF / UNIT / UNIT_TREE / ALL). Out-of-scope records return 404. Mapping:
+officers → `personnel.view`; duty sessions → `duty.view` / `duty.create` / `duty.close`; patrol logs and
+check-ins → `checkin.view`; evidence → `evidence.view`, `evidence.view_image`, `evidence.export`,
+`evidence.package`; dashboard → `dashboard.view`, `map.view`, `exception.view`; alert actions →
+`exception.manage`; audit → `audit.view`, `audit.verify`; devices → `device.view`, `device.approve`; device
+registration and sync → `checkin.perform`. Client type at login: web needs `web.login`, mobile needs
+`mobile.login`. See [`authorization.md`](authorization.md).
 
 ## Endpoints
 
@@ -106,3 +117,45 @@ Payload schemas: `packages/validation/src/index.ts` (strict — unknown fields a
 `evidence/manifest.json`, `ledger/events.json` (signed, hash-linked events of the duty session),
 `device/public-key.json`, `server/verification.json`, `custody/audit-events.json`.
 Verify offline: `node packages/verifier/dist/cli.js package.zip [--json]` → exit 0 PASS, 1 FAIL, 2 INCOMPLETE.
+
+
+## PRAMAAN 2.0 — railway-police operations endpoints
+
+| Method & path | Permission (and scope) | Purpose |
+|---|---|---|
+| `GET /api/v1/auth/me` | any | User, role label, permissions, scope level, personnel summary |
+| `GET /api/v1/auth/sessions` · `POST /api/v1/auth/sessions/:familyId/revoke` | any (own sessions only) | Session management |
+| `POST /api/v1/auth/change-password` | any | Self-service password change (other sessions revoked) |
+| `GET /api/v1/duty-assignments` | `duty.view` (scoped) | Filters: `category, status (incl. OPEN), unitId, officerId, from, to, q, page` |
+| `GET /api/v1/duty-assignments/:id` | `duty.view` (scoped; restricted details redacted) | Detail, personnel history, instructions, handovers, change history, exceptions, evidence, warnings, allowed actions |
+| `POST /api/v1/duty-assignments` | `duty.create` (+`duty.assign` with personnel, +`duty.approve` to publish; unit in scope) | Create (optionally with personnel and `publish:true`; `allowConflict` + `overrideReason`) |
+| `PATCH /api/v1/duty-assignments/:id` | `duty.assign` | Details/schedule change (reason required once published) |
+| `GET /api/v1/duty-assignments/:id/conflicts?officerId=` | `duty.assign` | Conflict preview |
+| `POST /api/v1/duty-assignments/:id/personnel` | `duty.assign` (override needs `duty.approve`) | Add personnel |
+| `POST …/:id/personnel/:pid/remove` · `…/replace` | `duty.assign` | Remove / replace with reason (history kept) |
+| `POST /api/v1/duty-assignments/:id/status` | `duty.approve` (ASSIGNED), `duty.close` (IN_PROGRESS, COMPLETED, CANCELLED), `duty.close` or assigned person (EXCEPTION_REPORTED) | State transition |
+| `POST /api/v1/duty-assignments/:id/accept` | assigned person | Accept assignment |
+| `POST /api/v1/duty-assignments/:id/instructions` | `duty.instructions.publish` | Publish a new instruction version |
+| `POST /api/v1/duty-assignments/instructions/:iid/acknowledge` | assigned person | Acknowledge a version |
+| `POST /api/v1/duty-assignments/:id/handovers` | `duty.handover.record` or outgoing person | Record handover |
+| `POST /api/v1/duty-assignments/handovers/:hid/acknowledge` | outgoing/incoming person | Acknowledge handover |
+| `GET /api/v1/roster?from&to&unitId&category` | `roster.view` (scoped, ≤ 42 days) | Personnel × duties, unavailability, conflicts |
+| `GET /api/v1/personnel` · `/stats` · `/:id` | `personnel.view` (scoped); own record always | Directory, counts by class, detail with duty history |
+| `POST /api/v1/personnel` · `PATCH /:id` · `POST /:id/status` | `personnel.manage` (never on own record) | Create, edit (reason), activate/deactivate (reason) |
+| `POST /api/v1/personnel/:id/unavailability` · `…/:uid/cancel` | `availability.manage` | Record / cancel unavailability (conflicts flagged) |
+| `GET /api/v1/units` | any | Unit tree |
+| `GET/POST /api/v1/accounts` · `PATCH /:id` · `POST /:id/reset-password` | `users.manage` (never own account) | Login accounts, role/status change (sessions revoked) |
+| `GET /api/v1/policy/duty-categories` | any | Category policy and eligibility |
+| `PATCH /api/v1/policy/duty-categories/:code` | `policy.manage` | Edit policy (versioned, audited, reason) |
+| `GET /api/v1/policy/roles` · `PUT /roles/:code/permissions` | `policy.manage` / `users.manage` (read); `policy.manage` (write) | Role–permission matrix |
+| `GET /api/v1/checkins` | `checkin.view` (scoped, restricted filtered) | Check-ins with duty link, device vs server times, location provenance, corrections |
+| `GET/POST /api/v1/corrections` · `POST /:id/decide` | `correction.request` / `correction.approve` (decider ≠ requester) | Audited corrections |
+| `GET /api/v1/exceptions/:id` · `POST /:id/notes` · `POST /evaluate` | `exception.view` / `exception.manage` | Detail with notes and audited history; investigation notes; run evaluator |
+| `GET /api/v1/dashboard/alerts?assignmentId&category…` | `exception.view` (scoped) | Exceptions list (extended filters) |
+| `GET /api/v1/dashboard/operations?from&to&category&unitId&officerId` | `dashboard.view` (scoped) | Operational overview counts |
+| `GET /api/v1/me/summary` | any | Personal duties, pending acknowledgements, sync status, counts |
+| `GET /api/v1/notifications` · `POST /:id/read` · `POST /read-all` | any (own) | In-app notifications; GET marks QUEUED → DELIVERED |
+| `GET /api/v1/reports/summary` | `reports.view` | Row counts / previews per report |
+| `GET /api/v1/reports/:kind.(csv\|pdf)` | `reports.export` (scoped; audited with SHA-256) | `kind` = `roster`, `assignments`, `completion`, `exceptions`, `evidence-verification` |
+| `GET /api/v1/system/status` | `system.health` | Measured API/DB/storage/sync/audit/backup status |
+| `GET /api/v1/duties` (extended) | `duty.view` | Each session now includes `assignment` (category, reference, restricted-aware details, latest instructions, check-in policy); drafts hidden from SELF scope |

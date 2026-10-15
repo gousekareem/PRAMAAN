@@ -2,12 +2,12 @@ import { Router } from 'express';
 import { z } from 'zod';
 import type { AppContext } from '../context.js';
 import { withTransaction } from '../database/pool.js';
-import { authUser, h, requireRole } from '../middleware/auth.js';
+import { authUser, h, requirePermission } from '../middleware/auth.js';
+import { assertOfficerInScope, officerScopeSql, restrictedSessionFilterSql } from '../security/access.js';
 import { AppError } from '../middleware/errors.js';
 import { reqId } from '../middleware/request-id.js';
 import { appendAudit } from '../services/audit.js';
 import {
-  assertOfficerScope,
   isoQuery,
   pageQuery,
   pageResult,
@@ -44,14 +44,16 @@ const cols = `p.id, p.event_id AS "eventId", p.officer_id AS "officerId", o.disp
   p.mock_indicator AS "mockIndicator", o.is_demo AS "isDemo"`;
 
 function buildWhere(u: ReturnType<typeof authUser>, f: z.infer<typeof filters>) {
-  const where: string[] = [];
   const args: unknown[] = [];
+  const where: string[] = [
+    officerScopeSql(u, 'p.officer_id', args),
+    restrictedSessionFilterSql(u, 'p.duty_session_id', 'p.officer_id', args),
+  ];
   const push = (sql: string, v: unknown) => {
     args.push(v);
     where.push(sql.replace('?', `$${args.length}`));
   };
-  if (u.role === 'OFFICER') push('p.officer_id = ?', u.officerId);
-  else if (f.officerId) push('p.officer_id = ?', f.officerId);
+  if (f.officerId) push('p.officer_id = ?', f.officerId);
   if (f.dutySessionId) push('p.duty_session_id = ?', f.dutySessionId);
   if (f.eventType) push('p.event_type = ?', f.eventType);
   if (f.spatialResult) push('p.spatial_result = ?', f.spatialResult);
@@ -71,7 +73,7 @@ export function patrolLogRoutes(ctx: AppContext): Router {
   const r = Router();
   r.get(
     '/',
-    requireRole('ADMIN', 'SUPERVISOR', 'REVIEWER', 'OFFICER'),
+    requirePermission('checkin.view'),
     h(async (req, res) => {
       const q = pageQuery.merge(filters).parse(req.query);
       const { limit, offset } = paging(q);
@@ -89,7 +91,7 @@ export function patrolLogRoutes(ctx: AppContext): Router {
 
   r.get(
     '/export.csv',
-    requireRole('ADMIN', 'SUPERVISOR'),
+    requirePermission('reports.export', 'checkin.view'),
     h(async (req, res) => {
       const u = authUser(req);
       const f = filters.parse(req.query);
@@ -137,17 +139,20 @@ export function patrolLogRoutes(ctx: AppContext): Router {
 
   r.get(
     '/:id',
-    requireRole('ADMIN', 'SUPERVISOR', 'REVIEWER', 'OFFICER'),
+    requirePermission('checkin.view'),
     h(async (req, res) => {
       const id = param(req, 'id');
+      const u = authUser(req);
+      const args: unknown[] = [id];
       const row = (
         await ctx.pool.query<{ officerId: string }>(
-          `SELECT ${cols}, d.envelope FROM patrol_logs p JOIN officers o ON o.id = p.officer_id JOIN device_events d ON d.event_id = p.event_id WHERE p.id = $1`,
-          [id],
+          `SELECT ${cols}, d.envelope FROM patrol_logs p JOIN officers o ON o.id = p.officer_id JOIN device_events d ON d.event_id = p.event_id
+            WHERE p.id = $1 AND ${restrictedSessionFilterSql(u, 'p.duty_session_id', 'p.officer_id', args)}`,
+          args,
         )
       ).rows[0];
       if (!row) throw new AppError(404, 'NOT_FOUND', 'Patrol log not found.');
-      assertOfficerScope(authUser(req), row.officerId);
+      await assertOfficerInScope(ctx.pool, u, row.officerId);
       res.json(row);
     }),
   );

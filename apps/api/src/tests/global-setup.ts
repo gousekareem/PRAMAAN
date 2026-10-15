@@ -3,7 +3,7 @@ import pg from 'pg';
 
 /**
  * Creates a fresh PostgreSQL/PostGIS test database. Requires a reachable server:
- *   TEST_DATABASE_ADMIN_URL (default postgres://pramaan:pramaan_dev_only@localhost:5432/postgres)
+ *   TEST_DATABASE_ADMIN_URL (default postgres://pramaan:pramaan_dev_only@localhost:5433/postgres)
  * Docker: `docker compose up -d db` from the repository root. Values from ../../.env are loaded if present.
  */
 export default async function setup() {
@@ -13,8 +13,7 @@ export default async function setup() {
     /* .env is optional */
   }
   const adminUrl =
-    process.env.TEST_DATABASE_ADMIN_URL ??
-    'postgres://pramaan:pramaan_dev_only@localhost:5432/postgres';
+    process.env.TEST_DATABASE_ADMIN_URL ?? 'postgres://pramaan:pramaan_dev_only@localhost:5433/postgres';
   const dbName = process.env.TEST_DATABASE_NAME ?? 'pramaan_test';
   const c = new pg.Client({ connectionString: adminUrl });
   await c.connect();

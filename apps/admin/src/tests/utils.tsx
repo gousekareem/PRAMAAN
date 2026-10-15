@@ -5,7 +5,20 @@ import { vi } from 'vitest';
 import { AuthContext } from '../auth/AuthContext';
 import type { Role } from '../services/types';
 
+/** Mirrors the server's default permission sets for the roles used in tests. */
+export const TEST_PERMISSIONS: Record<string, string[]> = {
+  ADMIN: ['web.login', 'dashboard.view', 'map.view', 'personnel.view', 'personnel.manage', 'availability.manage', 'users.manage', 'policy.manage', 'system.health', 'duty.view', 'duty.view_restricted', 'duty.create', 'duty.assign', 'duty.approve', 'duty.close', 'duty.instructions.publish', 'duty.handover.record', 'roster.view', 'checkin.view', 'evidence.view', 'evidence.view_image', 'evidence.export', 'evidence.package', 'exception.view', 'exception.manage', 'reports.view', 'reports.export', 'audit.view', 'audit.verify', 'device.view', 'device.approve', 'correction.request', 'correction.approve'],
+  SUPERVISOR: ['web.login', 'dashboard.view', 'map.view', 'personnel.view', 'duty.view', 'duty.view_restricted', 'duty.create', 'duty.assign', 'duty.approve', 'duty.close', 'duty.instructions.publish', 'duty.handover.record', 'roster.view', 'checkin.view', 'evidence.view', 'evidence.view_image', 'evidence.export', 'evidence.package', 'exception.view', 'exception.manage', 'reports.view', 'reports.export', 'audit.view', 'device.view', 'availability.manage', 'correction.approve'],
+  REVIEWER: ['web.login', 'dashboard.view', 'map.view', 'personnel.view', 'duty.view', 'roster.view', 'checkin.view', 'evidence.view', 'evidence.export', 'exception.view', 'reports.view', 'device.view'],
+  SI: ['web.login', 'mobile.login', 'dashboard.view', 'map.view', 'duty.view', 'duty.view_restricted', 'duty.create', 'duty.assign', 'duty.approve', 'duty.close', 'duty.instructions.publish', 'duty.handover.record', 'roster.view', 'checkin.perform', 'checkin.view', 'evidence.view', 'evidence.view_image', 'evidence.export', 'personnel.view', 'availability.manage', 'exception.view', 'exception.manage', 'reports.view', 'reports.export', 'device.view', 'correction.request', 'correction.approve'],
+  HC: ['web.login', 'mobile.login', 'dashboard.view', 'duty.view', 'roster.view', 'checkin.perform', 'checkin.view', 'evidence.view', 'personnel.view', 'exception.view', 'duty.handover.record', 'correction.request'],
+  DSP: ['web.login', 'dashboard.view', 'map.view', 'duty.view', 'roster.view', 'checkin.view', 'evidence.view', 'personnel.view', 'exception.view', 'reports.view', 'reports.export', 'audit.view', 'device.view'],
+  HG: ['web.login', 'mobile.login', 'duty.view', 'roster.view', 'checkin.perform', 'checkin.view', 'evidence.view', 'correction.request'],
+  PC: ['web.login', 'mobile.login', 'duty.view', 'roster.view', 'checkin.perform', 'checkin.view', 'evidence.view', 'correction.request'],
+};
+
 export function authValue(role: Role | null) {
+  const permissions = role ? (TEST_PERMISSIONS[role] ?? []) : [];
   return {
     user: role
       ? {
@@ -13,8 +26,10 @@ export function authValue(role: Role | null) {
           email: 'x@pramaan.demo',
           displayName: `Test ${role}`,
           role,
-          officerId: null,
+          officerId: ['HG', 'PC', 'HC', 'ASI', 'SI', 'CI', 'DSP'].includes(role) ? 'o1' : null,
           isDemo: true,
+          permissions,
+          roleLabel: role,
         }
       : null,
     status: role ? ('authenticated' as const) : ('anonymous' as const),
@@ -22,6 +37,7 @@ export function authValue(role: Role | null) {
     login: vi.fn(),
     logout: vi.fn(async () => undefined),
     hasRole: (...roles: Role[]) => !!role && roles.includes(role),
+    can: (...p: string[]) => p.some((x) => permissions.includes(x)),
     getToken: () => (role ? 'token' : null),
   };
 }

@@ -27,19 +27,19 @@ function toLocalInput(d: Date) {
 }
 
 export function DutiesPage() {
-  const { hasRole } = useAuth();
+  const { can } = useAuth();
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState('');
   const list = useApi(
     () => api<Page<Duty>>(`/api/v1/duties${qs({ page, status })}`),
     [page, status],
   );
-  const canCreate = hasRole('ADMIN', 'SUPERVISOR');
+  const canCreate = can('duty.create');
   return (
     <>
       <PageHeader
-        title="Duty sessions"
-        subtitle="Planned windows are authorised on the server; device-reported start times are shown separately and are not trusted."
+        title="Individual duty sessions"
+        subtitle="Per-person device sessions (PRAMAAN 1.0). Sessions created through duty assignments appear here as well. Planned windows are authorised on the server; device-reported start times are shown separately and are not trusted."
       />
       {canCreate && <CreateDuty onCreated={list.reload} />}
       <label className="mb-3 mt-4 block max-w-xs text-sm">

@@ -1,12 +1,12 @@
 import { Router } from 'express';
 import type { AppContext } from '../context.js';
-import { h, requireRole } from '../middleware/auth.js';
+import { h, requireAnyPermission } from '../middleware/auth.js';
 
 export function zoneRoutes(ctx: AppContext): Router {
   const r = Router();
   r.get(
     '/',
-    requireRole('ADMIN', 'SUPERVISOR', 'REVIEWER', 'OFFICER'),
+    requireAnyPermission('duty.view', 'map.view'),
     h(async (_req, res) => {
       const { rows } = await ctx.pool.query(
         `SELECT id, code, name, zone_type AS "zoneType", version, is_demo AS "isDemo", ST_AsGeoJSON(geom, 7)::json AS geometry

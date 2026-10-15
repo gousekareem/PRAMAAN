@@ -2,7 +2,8 @@ import { Router } from 'express';
 import { z } from 'zod';
 import type { AppContext } from '../context.js';
 import { withTransaction } from '../database/pool.js';
-import { authUser, h, requireRole } from '../middleware/auth.js';
+import { authUser, h, requirePermission, type AuthUser } from '../middleware/auth.js';
+import { assignmentScopeSql, officerScopeSql } from '../security/access.js';
 import { reqId } from '../middleware/request-id.js';
 import {
   appendAudit,
@@ -12,12 +13,29 @@ import {
 } from '../services/audit.js';
 import { pageQuery, pageResult, paging, uuidParam } from './common.js';
 
+/**
+ * Audit scope for non-global users: records whose actor is personnel in scope, or whose target is a
+ * personnel record, duty assignment or evidence object in scope. Global (ALL) users see everything.
+ */
+export function auditScopeSql(u: AuthUser, args: unknown[]): string {
+  if (u.scope.level === 'ALL') return 'TRUE';
+  const actor = officerScopeSql(u, 'au.officer_id', args);
+  const person = officerScopeSql(u, 'po.id', args);
+  const ev = officerScopeSql(u, 'eo.officer_id', args);
+  const asg = assignmentScopeSql(u, 'sa', args);
+  return `(EXISTS (SELECT 1 FROM app_users au WHERE au.id = a.actor_user_id AND au.officer_id IS NOT NULL AND ${actor})
+    OR (a.target_type IN ('personnel','officer') AND EXISTS (SELECT 1 FROM officers po WHERE po.id::text = a.target_id AND ${person}))
+    OR (a.evidence_id IS NOT NULL AND EXISTS (SELECT 1 FROM evidence_objects eo WHERE eo.evidence_id = a.evidence_id AND ${ev}))
+    OR (a.target_type = 'duty_assignment' AND EXISTS (SELECT 1 FROM duty_assignments sa WHERE sa.id::text = a.target_id AND ${asg})))`;
+}
+
 export function auditRoutes(ctx: AppContext): Router {
   const r = Router();
   r.get(
     '/',
-    requireRole('ADMIN', 'SUPERVISOR'),
+    requirePermission('audit.view'),
     h(async (req, res) => {
+      const u = authUser(req);
       const q = pageQuery
         .extend({
           action: z
@@ -26,11 +44,24 @@ export function auditRoutes(ctx: AppContext): Router {
             .optional(),
           evidenceId: uuidParam.optional(),
           actorUserId: uuidParam.optional(),
+          targetType: z
+            .string()
+            .regex(/^[a-z_]{2,40}$/)
+            .optional(),
+          targetId: z.string().max(80).optional(),
         })
         .parse(req.query);
       const { limit, offset } = paging(q);
-      const where: string[] = [];
       const args: unknown[] = [];
+      const where: string[] = [auditScopeSql(u, args)];
+      if (q.targetType) {
+        args.push(q.targetType);
+        where.push(`a.target_type = $${args.length}`);
+      }
+      if (q.targetId) {
+        args.push(q.targetId);
+        where.push(`a.target_id = $${args.length}`);
+      }
       if (q.action) {
         args.push(q.action);
         where.push(`a.action = $${args.length}`);
@@ -64,7 +95,7 @@ export function auditRoutes(ctx: AppContext): Router {
   /** Latest chain head. Store it independently (e.g. print, email, another system) to detect later rewrites. */
   r.get(
     '/checkpoint',
-    requireRole('ADMIN', 'SUPERVISOR'),
+    requirePermission('audit.view'),
     h(async (_req, res) => {
       const head = (
         await ctx.pool.query<{ last_sequence: number; last_hash: string }>(
@@ -81,7 +112,7 @@ export function auditRoutes(ctx: AppContext): Router {
 
   r.get(
     '/verify',
-    requireRole('ADMIN'),
+    requirePermission('audit.verify'),
     h(async (req, res) => {
       const result = await verifyFullAuditChain(ctx.pool);
       const u = authUser(req);

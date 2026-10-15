@@ -10,4 +10,5 @@
   plus a mandatory custom header (CSRF defence). Mobile: stored inside the SQLCipher database.
 - Every request re-checks that the user is active and the session family not revoked, so logout and
   device revocation take effect immediately.
-- Roles: ADMIN, SUPERVISOR (DSP/SHO-style), REVIEWER (read-only, no image content), OFFICER (mobile only).
+- Roles: ADMIN, SUPERVISOR (DSP/SHO-style), REVIEWER (read-only, no image content), OFFICER (mobile only). **Superseded in 2.0 by ADR-009** (database-backed permissions and scopes; rank roles HG…DSP).
+- 2.0: every request also re-reads the role, permissions, scope and the linked personnel record’s active status; demo accounts are refused in production unless `ALLOW_DEMO_LOGIN=true`.

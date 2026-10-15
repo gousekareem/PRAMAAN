@@ -44,6 +44,44 @@ describe('route guards and role-based visibility', () => {
       { role: 'REVIEWER' },
     );
     expect(screen.queryByRole('link', { name: 'Audit history' })).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Alerts' })).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: 'Exceptions' }).length).toBeGreaterThan(0);
+  });
+  it('shows field personnel only their own areas (navigation follows permissions)', () => {
+    mockFetch({ '/api/v1/': emptyPage, '/api/v1/notifications': { items: [], unread: 0 } });
+    renderWith(
+      <Routes>
+        <Route element={<AppLayout />}>
+          <Route path="*" element={<p>x</p>} />
+        </Route>
+      </Routes>,
+      { role: 'HG' },
+    );
+    for (const name of ['My duties', 'Duty assignments', 'Train beats', 'Check-ins & presence', 'Account & sessions'])
+      expect(screen.getAllByRole('link', { name }).length).toBeGreaterThan(0);
+    for (const name of ['Overview', 'Personnel', 'Login accounts', 'Audit history', 'Reports', 'System status', 'Exceptions'])
+      expect(screen.queryByRole('link', { name })).not.toBeInTheDocument();
+  });
+  it('gives the system administrator the administration section', () => {
+    mockFetch({ '/api/v1/': emptyPage, '/api/v1/notifications': { items: [], unread: 0 } });
+    renderWith(
+      <Routes>
+        <Route element={<AppLayout />}>
+          <Route path="*" element={<p>x</p>} />
+        </Route>
+      </Routes>,
+      { role: 'ADMIN' },
+    );
+    for (const name of ['Login accounts', 'Duty policy & roles', 'System status', 'Audit history'])
+      expect(screen.getAllByRole('link', { name }).length).toBeGreaterThan(0);
+    expect(screen.queryByRole('link', { name: 'My duties' })).not.toBeInTheDocument();
+  });
+  it('guards pages by permission', () => {
+    renderWith(
+      <Routes>
+        <Route path="/x" element={<RequireAuth anyOf={['users.manage']}><p>accounts</p></RequireAuth>} />
+      </Routes>,
+      { role: 'SI', route: '/x' },
+    );
+    expect(screen.getByRole('alert')).toHaveTextContent('Not authorised');
   });
 });

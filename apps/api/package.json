@@ -17,7 +17,8 @@
     "simulate": "tsx --env-file-if-exists=../../.env src/tools/simulate-device.ts",
     "bench": "tsx --env-file-if-exists=../../.env src/tools/benchmark.ts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "scenarios": "tsx --env-file-if-exists=../../.env src/tools/scenarios.ts"
   },
   "dependencies": {
     "@node-rs/argon2": "2.0.2",

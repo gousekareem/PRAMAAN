@@ -4,8 +4,7 @@
     "module": "CommonJS",
     "moduleResolution": "Node10",
     "outDir": "dist",
-    "rootDir": "src",
-    "types": ["node"]
+    "rootDir": "src", "types": ["node"]
   },
   "include": ["src"],
   "exclude": ["src/tests"]

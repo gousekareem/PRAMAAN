@@ -17,7 +17,7 @@ jobs:
           POSTGRES_USER: pramaan
           POSTGRES_PASSWORD: pramaan_ci_only
           POSTGRES_DB: pramaan
-        ports: ['5432:5432']
+        ports: ["5432:5432"]
         options: >-
           --health-cmd "pg_isready -U pramaan" --health-interval 5s --health-timeout 5s --health-retries 20
     env:

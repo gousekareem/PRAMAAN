@@ -21,7 +21,7 @@ describe('health', () => {
     const r = await request(app).get('/ready');
     expect(r.status).toBe(200);
     expect(r.body.checks.postgis).toMatch(/^3\./);
-    expect(Number(r.body.checks.migrations)).toBe(5);
+    expect(Number(r.body.checks.migrations)).toBe(7);
   });
 });
 

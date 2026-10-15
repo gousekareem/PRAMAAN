@@ -2,7 +2,8 @@ import { Router } from 'express';
 import { z } from 'zod';
 import type { AppContext } from '../context.js';
 import { withTransaction } from '../database/pool.js';
-import { authUser, h, requireRole } from '../middleware/auth.js';
+import { authUser, h, requirePermission } from '../middleware/auth.js';
+import { officerScopeSql } from '../security/access.js';
 import { AppError } from '../middleware/errors.js';
 import { reqId } from '../middleware/request-id.js';
 import { parseDevicePublicKey } from '../security/device-keys.js';
@@ -33,9 +34,11 @@ export function deviceRoutes(ctx: AppContext): Router {
   /** Officer registers a device public key. Private keys never leave the device. Status starts PENDING. */
   r.post(
     '/register',
-    requireRole('OFFICER'),
+    requirePermission('checkin.perform'),
     h(async (req, res) => {
       const u = authUser(req);
+      if (!u.officerId)
+        throw new AppError(403, 'FORBIDDEN', 'Only accounts linked to personnel can register devices.');
       const b = registerSchema.parse(req.body);
       const key = parseDevicePublicKey(b.publicKeySpki);
       if (!key)
@@ -114,7 +117,7 @@ export function deviceRoutes(ctx: AppContext): Router {
 
   r.get(
     '/mine',
-    requireRole('OFFICER'),
+    requirePermission('checkin.perform'),
     h(async (req, res) => {
       const u = authUser(req);
       const { rows } = await ctx.pool.query(
@@ -127,14 +130,19 @@ export function deviceRoutes(ctx: AppContext): Router {
 
   r.get(
     '/',
-    requireRole('ADMIN', 'SUPERVISOR', 'REVIEWER'),
+    requirePermission('device.view'),
     h(async (req, res) => {
       const q = pageQuery
         .extend({ status: z.enum(['PENDING', 'ACTIVE', 'REVOKED']).optional() })
         .parse(req.query);
       const { limit, offset } = paging(q);
-      const args = q.status ? [q.status] : [];
-      const w = q.status ? 'WHERE d.status = $1' : '';
+      const args: unknown[] = [];
+      const where = [officerScopeSql(authUser(req), 'd.officer_id', args)];
+      if (q.status) {
+        args.push(q.status);
+        where.push(`d.status = $${args.length}`);
+      }
+      const w = `WHERE ${where.join(' AND ')}`;
       const total = (
         await ctx.pool.query<{ n: number }>(`SELECT count(*)::int n FROM devices d ${w}`, args)
       ).rows[0]!.n;
@@ -148,7 +156,7 @@ export function deviceRoutes(ctx: AppContext): Router {
 
   r.post(
     '/:id/approve',
-    requireRole('ADMIN'),
+    requirePermission('device.approve'),
     h(async (req, res) => {
       const id = param(req, 'id');
       const u = authUser(req);
@@ -184,7 +192,7 @@ export function deviceRoutes(ctx: AppContext): Router {
 
   r.post(
     '/:id/revoke',
-    requireRole('ADMIN'),
+    requirePermission('device.approve'),
     h(async (req, res) => {
       const id = param(req, 'id');
       const u = authUser(req);

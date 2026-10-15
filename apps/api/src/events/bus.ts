@@ -4,7 +4,9 @@ export type DashboardEvent =
   | { type: 'batch-ingested'; deviceId: string; officerId: string; accepted: number; at: string }
   | { type: 'flag-created'; flagId: string; flagType: string; severity: string; at: string }
   | { type: 'evidence-verified'; evidenceId: string; status: string; at: string }
-  | { type: 'flag-updated'; flagId: string; status: string; at: string };
+  | { type: 'flag-updated'; flagId: string; status: string; at: string }
+  | { type: 'duty-updated'; assignmentId: string; status: string; at: string }
+  | { type: 'notification'; recipientUserId: string; at: string };
 
 /**
  * In-process event bus feeding Server-Sent Events. A multi-instance deployment would need

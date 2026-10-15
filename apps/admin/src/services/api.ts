@@ -6,6 +6,7 @@ export class ApiError extends Error {
     public readonly code: string,
     message: string,
     public readonly requestId: string | null,
+    public readonly details?: unknown,
   ) {
     super(message);
   }
@@ -31,13 +32,14 @@ export function configureAuth(p: TokenProvider): void {
 async function parseError(res: Response): Promise<ApiError> {
   try {
     const body = (await res.json()) as {
-      error?: { code?: string; message?: string; requestId?: string };
+      error?: { code?: string; message?: string; requestId?: string; details?: unknown };
     };
     return new ApiError(
       res.status,
       body.error?.code ?? 'HTTP_ERROR',
       body.error?.message ?? res.statusText,
       body.error?.requestId ?? res.headers.get('x-request-id'),
+      body.error?.details,
     );
   } catch {
     return new ApiError(
@@ -107,4 +109,20 @@ export async function download(path: string, fallbackName: string): Promise<void
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/** JSON request helper for mutations. */
+export function send<T>(path: string, method: 'POST' | 'PATCH' | 'PUT', body?: unknown): Promise<T> {
+  return api<T>(path, { method, body: body === undefined ? undefined : JSON.stringify(body) });
+}
+
+/** Human-readable message for an error, including validation details when present. */
+export function errorText(e: unknown): string {
+  if (e instanceof ApiError) {
+    const d = e.details as { path?: string; message?: string }[] | undefined;
+    if (Array.isArray(d) && d.length && d[0]?.message)
+      return `${e.message} ${d.map((x) => `${x.path ? `${x.path}: ` : ''}${x.message}`).join('; ')}`;
+    return e.message;
+  }
+  return e instanceof Error ? e.message : 'Request failed.';
 }

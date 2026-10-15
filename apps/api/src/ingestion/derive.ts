@@ -3,6 +3,7 @@ import type pg from 'pg';
 import { assessMovement, type EvidenceManifest, type SignedEvent } from '@pramaan/event-contracts';
 import type { AppContext } from '../context.js';
 import { evaluateLocation, type SpatialEvaluation } from '../spatial/zones.js';
+import { onDeviceDutyStarted } from '../services/duties.js';
 import { raiseFlag } from '../services/flags.js';
 
 type P = Record<string, unknown>;
@@ -319,9 +320,10 @@ export async function deriveFromEvent(
     case 'DUTY_SESSION_STARTED':
       if (dutyId)
         await c.query(
-          "UPDATE duty_sessions SET status = CASE WHEN status = 'PLANNED' THEN 'ACTIVE' ELSE status END, device_id = COALESCE(device_id, $2), device_started_at = COALESCE(device_started_at, $3) WHERE id = $1",
-          [dutyId, e.deviceId, e.deviceWallTime],
+          "UPDATE duty_sessions SET status = CASE WHEN status = 'PLANNED' THEN 'ACTIVE' ELSE status END, device_id = COALESCE(device_id, $2), device_started_at = COALESCE(device_started_at, $3), server_started_received_at = COALESCE(server_started_received_at, $4) WHERE id = $1",
+          [dutyId, e.deviceId, e.deviceWallTime, receivedAt],
         );
+      if (dutyId) await onDeviceDutyStarted(c, ctx.bus, dutyId);
       await insertPatrolLog(c, e, dutyId, receivedAt, null, null, 'SIGNATURE_VALID');
       break;
     case 'DUTY_SESSION_ENDED':

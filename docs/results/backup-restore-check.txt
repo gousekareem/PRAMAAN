@@ -1,17 +1,17 @@
-1/5 pg_dump (custom format) -> ./backups/pramaan-20261013T063756Z.dump
-fa12901780a7421b1d8924ec664e52ab8e0e3389e77424fea08a10354cb287c5  ./backups/pramaan-20261013T063756Z.dump
+1/5 pg_dump (custom format) -> /home/claude/work/backups/pramaan-20261015T123101Z.dump
+f92df61c52fe901f2ce50d066e0ad4ee8039df390059fdb824b338e06f132cd8  /home/claude/work/backups/pramaan-20261015T123101Z.dump
 2/5 create clean database pramaan_restore_check
 DROP DATABASE
 CREATE DATABASE
 3/5 pg_restore
 4/5 compare record counts
-  source : audit_events=22 device_events=15 evidence_objects=3 geo_zones=4 ingestion_rejections=2 patrol_logs=9 review_flags=10 schema_migrations=5
-  restore: audit_events=22 device_events=15 evidence_objects=3 geo_zones=4 ingestion_rejections=2 patrol_logs=9 review_flags=10 schema_migrations=5
+  source : app_users=14 audit_events=115 device_events=16 duty_assignment_changes=73 duty_assignment_personnel=31 duty_assignments=15 evidence_objects=2 geo_zones=4 ingestion_rejections=0 officers=27 patrol_logs=14 record_corrections=1 review_flags=21 schema_migrations=7
+  restore: app_users=14 audit_events=115 device_events=16 duty_assignment_changes=73 duty_assignment_personnel=31 duty_assignments=15 evidence_objects=2 geo_zones=4 ingestion_rejections=0 officers=27 patrol_logs=14 record_corrections=1 review_flags=21 schema_migrations=7
 5/5 evidence references + audit chain on the restored copy
   evidence objects missing from storage: 0 (evidence bytes are backed up separately from the database)
 {
   "ok": true,
-  "checked": 22,
-  "headSequence": 22,
-  "headHash": "31680b229f7eeba390bcd00351687469f2cfc6a5adda29024fc9c0d4714ddcb2",
-RESTORE CHECK PASSED
+  "checked": 115,
+  "headSequence": 115,
+  "headHash": "1e86ab21df43fa8b15dec992317f2f4291b8826b183b682d76b647c29f040efe",
+RESTORE CHECK PASSED (result: /home/claude/work/backups/backup-verification.json)

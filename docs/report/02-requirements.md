@@ -19,6 +19,18 @@
 | FR-13 | Evidence can be inspected and exported (verification package ZIP, manifest JSON, PDF report; patrol logs CSV) under access control and audit. |
 | FR-14 | Exported packages can be verified offline by a standalone tool. |
 | FR-15 | The dashboard distinguishes recently received, delayed, offline-last-known and stale observations. |
+| FR-16 *(2.0)* | Personnel are classified by personnel category (Police / Home Guard), rank (PC, HC, ASI, SI, CI, DSP) and constable subtype (AR / General). |
+| FR-17 *(2.0)* | Every account has a role whose permissions and data scope are stored in the database and enforced by the backend on every request. Users cannot change their own role, status or rank. |
+| FR-18 *(2.0)* | Authorised users create, staff, publish, change, cancel and complete duties in four categories: Train Beat, Station Watch, VIP Escort and Track Incident. |
+| FR-19 *(2.0)* | Staffing is flexible and policy-driven: configurable eligibility per category, warnings for gaps, rejection of inactive personnel, and conflict/leave detection with reasoned, audited overrides. |
+| FR-20 *(2.0)* | Duty status follows a defined state machine. Every change is recorded in an append-only history with reason, actor and time. |
+| FR-21 *(2.0)* | Versioned instructions, acceptance and handovers are recorded with acknowledgements. |
+| FR-22 *(2.0)* | Each assigned person receives a device session, so check-ins and evidence are linked to the person and the duty, with device and server times shown separately. |
+| FR-23 *(2.0)* | Exceptions cover missed/late check-ins, delayed reporting, overdue duties, sync failures, evidence failures and conflicts, with notes, resolution and audit. They are never classified as misconduct. |
+| FR-24 *(2.0)* | Corrections never overwrite history: original, proposed value, reason, requester and an independent approval are stored. |
+| FR-25 *(2.0)* | A duty roster (daily, weekly, monthly), a personnel directory, in-app notifications with truthful delivery status, scoped CSV/PDF reports and a protected status page are provided. |
+| FR-26 *(2.0)* | Restricted categories (VIP escort, track incident) reveal sensitive details only to authorised or assigned users. |
+| FR-27 *(2.0)* | Deterministic synthetic demo data and the requested demonstration accounts can be reset repeatably. Production refuses demo seeding, and demo logins only work with explicit configuration. |
 
 ## Non-functional requirements
 
@@ -29,7 +41,7 @@
 | NFR-3 Privacy | Data minimisation, visible collection, no covert capture | `docs/privacy-governance.md` |
 | NFR-4 Reliability | Offline for ≥ 8 h without loss; crash-safe | transactional ledger, persistent outbox, idempotent ingestion |
 | NFR-5 Performance | 50-event batch ≤ 2 s p95; spatial check ≤ 20 ms p95 | measured: `docs/performance.md` |
-| NFR-6 Maintainability | Typed code, tests, lint, migrations, ADRs | TypeScript strict, 174 tests, ESLint |
+| NFR-6 Maintainability | Typed code, tests, lint, migrations, ADRs | TypeScript strict, automated suites (see results), ESLint, forward-only migrations |
 | NFR-7 Accessibility | Keyboard navigation, focus states, labels, contrast, responsive | Tailwind design tokens, ARIA roles, tested layouts |
 | NFR-8 Portability | Windows development, Render deployment | PowerShell scripts, `deploy/render.yaml` |
 | NFR-9 Transparency | Every limitation and unverified area disclosed | this document, `docs/limitations.md` |

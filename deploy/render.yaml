@@ -7,8 +7,8 @@ databases:
     databaseName: pramaan
     user: pramaan_app
     region: singapore
-    postgresMajorVersion: '16'
-    ipAllowList: [] # private network only (API connects over Render's internal network)
+    postgresMajorVersion: "16"
+    ipAllowList: []            # private network only (API connects over Render's internal network)
 
 services:
   - type: web
@@ -27,25 +27,31 @@ services:
       - key: NODE_ENV
         value: production
       - key: NODE_VERSION
-        value: '22.22.0'
+        value: "22.22.0"
       - key: DATABASE_URL
         fromDatabase:
           name: pramaan-db
           property: connectionString
       - key: DATABASE_SSL_MODE
-        value: disable # internal URL on Render's private network
+        value: disable          # internal URL on Render's private network
       - key: JWT_ACCESS_SECRET
         generateValue: true
       - key: CORS_ORIGINS
-        sync: false # e.g. https://pramaan-admin.onrender.com
+        sync: false             # e.g. https://pramaan-admin.onrender.com
       - key: COOKIE_SAMESITE
-        value: none # *.onrender.com is a public suffix → dashboard and API are cross-site
+        value: none             # *.onrender.com is a public suffix → dashboard and API are cross-site
       - key: TRUST_PROXY
-        value: '1'
+        value: "1"
       - key: EVIDENCE_STORAGE_DIR
         value: /var/data/evidence
       - key: ALLOW_DEMO_SEED
-        value: 'false'
+        value: "false"
+      # Demo (*@parmaan.demo / *@pramaan.demo) accounts are refused in production unless this is "true".
+      # Keep it "false" on any publicly reachable deployment.
+      - key: ALLOW_DEMO_LOGIN
+        value: "false"
+      - key: EXCEPTION_EVALUATOR_INTERVAL_SECONDS
+        value: "60"
       - key: LOG_LEVEL
         value: info
 
@@ -70,6 +76,6 @@ services:
         value: no-referrer
     envVars:
       - key: VITE_API_BASE_URL
-        sync: false # e.g. https://pramaan-api.onrender.com
+        sync: false             # e.g. https://pramaan-api.onrender.com
       - key: NODE_VERSION
-        value: '22.22.0'
+        value: "22.22.0"

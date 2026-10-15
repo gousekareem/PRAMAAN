@@ -19,6 +19,8 @@ interface AuthState {
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   hasRole: (...roles: Role[]) => boolean;
+  /** True if the user holds ANY of the permissions (UI hint; the server re-checks every request). */
+  can: (...permissions: string[]) => boolean;
   getToken: () => string | null;
 }
 
@@ -122,6 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login,
       logout,
       hasRole: (...roles) => !!user && roles.includes(user.role),
+      can: (...perms) => !!user && perms.some((p) => user.permissions?.includes(p)),
       getToken: () => tokenRef.current,
     }),
     [user, status, expired, login, logout],

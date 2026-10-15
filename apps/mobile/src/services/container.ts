@@ -7,7 +7,12 @@ import { LedgerService } from '../ledger/ledger';
 import { FetchHttpClient } from '../sync/http';
 import { SyncEngine, type SyncSnapshot } from '../sync/syncEngine';
 import { compactLedger } from '../sync/retention';
-import { CheckinEngine, DEFAULT_POLICY } from '../checkins/checkinEngine';
+import {
+  CheckinEngine,
+  DEFAULT_POLICY,
+  policyForDutyRow,
+  type ServerCheckinPolicy,
+} from '../checkins/checkinEngine';
 import { EvidenceService } from '../evidence/evidenceService';
 import { ObservationProcessor } from '../sensors/observationProcessor';
 import {
@@ -41,6 +46,27 @@ export interface DutyInfo {
   plannedEnd: string;
   status: string;
   zones: { id: string; code: string; name: string }[];
+  /** Duty-assignment context (null for individual PRAMAAN 1.0 sessions). */
+  assignment?: DutyAssignmentInfo | null;
+}
+
+export interface DutyAssignmentInfo {
+  id: string;
+  referenceCode: string;
+  category: 'TRAIN_BEAT' | 'STATION_WATCH' | 'VIP_ESCORT' | 'TRACK_INCIDENT';
+  categoryLabel: string;
+  status: string;
+  isRestricted: boolean;
+  personnelStatus: string;
+  acceptRequired: boolean;
+  acceptedAt: string | null;
+  title: string;
+  reportingLocation: string | null;
+  trainRef: string | null;
+  escortLabel: string | null;
+  incidentRef: string | null;
+  instructions: { id: string; version: number; body: string; publishedAt: string; acknowledged: boolean } | null;
+  checkinPolicy: ServerCheckinPolicy;
 }
 
 /** Composition root for the Android app. */
@@ -197,8 +223,9 @@ export class AppServices {
     );
     for (const d of items) {
       await this.db.execute(
-        `INSERT INTO duty_sessions (id, officer_id, planned_start, planned_end, zone_ids_json, status, updated_at) VALUES (?, ?, ?, ?, ?, 'PLANNED', ?)
-         ON CONFLICT(id) DO UPDATE SET planned_start = excluded.planned_start, planned_end = excluded.planned_end, zone_ids_json = excluded.zone_ids_json`,
+        `INSERT INTO duty_sessions (id, officer_id, planned_start, planned_end, zone_ids_json, status, updated_at, assignment_json) VALUES (?, ?, ?, ?, ?, 'PLANNED', ?, ?)
+         ON CONFLICT(id) DO UPDATE SET planned_start = excluded.planned_start, planned_end = excluded.planned_end, zone_ids_json = excluded.zone_ids_json,
+           assignment_json = excluded.assignment_json`,
         [
           d.id,
           this.identity!.officerId,
@@ -206,6 +233,7 @@ export class AppServices {
           d.plannedEnd,
           JSON.stringify(d.zones.map((z) => z.id)),
           new Date().toISOString(),
+          d.assignment ? JSON.stringify(d.assignment) : null,
         ],
       );
     }
@@ -240,7 +268,25 @@ export class AppServices {
     const posture = await Security().devicePosture();
     await this.ledger.append('DEVICE_INTEGRITY_OBSERVED', posture, { dutySessionId: dutyId });
     await Duty().startDutyService(dutyId, Date.parse(String(d.planned_end)));
-    await this.checkins.scheduleNext(dutyId, String(d.planned_end));
+    await this.checkins.scheduleNext(dutyId, String(d.planned_end), policyForDutyRow(d));
+  }
+
+  /** Accepts an assignment or acknowledges instructions (online actions; audited on the server). */
+  async acceptAssignment(assignmentId: string): Promise<void> {
+    await this.postAction(`/api/v1/duty-assignments/${assignmentId}/accept`);
+  }
+
+  async acknowledgeInstructions(instructionId: string): Promise<void> {
+    await this.postAction(`/api/v1/duty-assignments/instructions/${instructionId}/acknowledge`);
+  }
+
+  private async postAction(path: string): Promise<void> {
+    if (!this.online) throw new Error('Connect to the network to send this acknowledgement.');
+    const r = await this.http.send({ method: 'POST', path, token: this.session.accessToken() });
+    if (r.status < 200 || r.status >= 300) {
+      const msg = (r.json as { error?: { message?: string } } | null)?.error?.message;
+      throw new Error(msg ?? `Request failed (HTTP ${r.status})`);
+    }
   }
 
   async endDuty(): Promise<void> {
@@ -272,7 +318,7 @@ export class AppServices {
     if (d) {
       await drainNativeObservations((obs) => this.processor.process(String(d.id), obs), 500);
       await this.checkins.evaluateDeadlines();
-      await this.checkins.scheduleNext(String(d.id), String(d.planned_end));
+      await this.checkins.scheduleNext(String(d.id), String(d.planned_end), policyForDutyRow(d));
     }
     if (this.online && !this.session.accessToken()) await this.session.refresh();
     const snap = await this.sync.runOnce({ online: this.online, deviceId: this.deviceId });
@@ -280,3 +326,4 @@ export class AppServices {
     return snap;
   }
 }
+

@@ -43,6 +43,13 @@ const schema = z
       .default('info'),
     ALLOW_DEMO_SEED: bool.default(false),
     SEED_DEMO_PASSWORD: z.string().optional(),
+    /** Allows accounts flagged is_demo to sign in. Defaults to true outside production and false in
+     *  production; enabling it in production is an explicit, logged configuration decision. */
+    ALLOW_DEMO_LOGIN: bool.optional(),
+    /** Interval of the server-side duty exception evaluator (0 disables the timer). */
+    EXCEPTION_EVALUATOR_INTERVAL_SECONDS: z.coerce.number().int().min(0).max(3600).default(60),
+    /** Optional JSON file written by scripts/backup-restore-check.sh; shown on the status page only if present. */
+    BACKUP_VERIFICATION_FILE: z.string().optional(),
     FUTURE_SKEW_TOLERANCE_MS: z.coerce
       .number()
       .int()
@@ -89,7 +96,11 @@ const schema = z
     }
   });
 
-export type Env = z.infer<typeof schema> & { corsOrigins: string[]; cookieSecure: boolean };
+export type Env = z.infer<typeof schema> & {
+  corsOrigins: string[];
+  cookieSecure: boolean;
+  demoLoginAllowed: boolean;
+};
 
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
   const parsed = schema.safeParse(source);
@@ -104,6 +115,7 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
       .map((s) => s.trim())
       .filter(Boolean),
     cookieSecure: v.COOKIE_SECURE ?? v.NODE_ENV === 'production',
+    demoLoginAllowed: v.ALLOW_DEMO_LOGIN ?? v.NODE_ENV !== 'production',
   };
 }
 
@@ -119,9 +131,6 @@ export type DatabaseEnv = z.infer<typeof dbSchema>;
 /** Minimal configuration for operator CLIs (migrations, audit verification, user creation). */
 export function loadDatabaseEnv(source: NodeJS.ProcessEnv = process.env): DatabaseEnv {
   const r = dbSchema.safeParse(source);
-  if (!r.success)
-    throw new Error(
-      `Invalid configuration: ${r.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`,
-    );
+  if (!r.success) throw new Error(`Invalid configuration: ${r.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`);
   return r.data;
 }

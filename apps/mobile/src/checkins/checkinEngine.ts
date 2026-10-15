@@ -24,6 +24,44 @@ export const DEFAULT_POLICY: CheckinPolicy = {
   escalationThreshold: 2,
 };
 
+/** Check-in policy published by the server for a duty category (configurable, prototype defaults). */
+export interface ServerCheckinPolicy {
+  policyVersion?: number;
+  minIntervalMin: number;
+  maxIntervalMin: number;
+  responseWindowSec: number;
+}
+
+/**
+ * Converts the category policy attached to a duty assignment into the engine's policy.
+ * Invalid or missing values fall back to the default; the 5-second challenge limit is fixed.
+ */
+export function policyFromServer(p: ServerCheckinPolicy | null | undefined, base: CheckinPolicy = DEFAULT_POLICY): CheckinPolicy {
+  if (!p) return base;
+  const min = Number(p.minIntervalMin);
+  const max = Number(p.maxIntervalMin);
+  const win = Number(p.responseWindowSec);
+  if (!Number.isFinite(min) || !Number.isFinite(max) || !Number.isFinite(win) || min < 5 || max < min || win < 30) return base;
+  return {
+    ...base,
+    policyVersion: Number(p.policyVersion ?? base.policyVersion),
+    minIntervalMs: min * 60_000,
+    maxIntervalMs: max * 60_000,
+    responseWindowMs: win * 1000,
+  };
+}
+
+/** Check-in policy for a locally cached duty row (category policy when the duty came from an assignment). */
+export function policyForDutyRow(row: Record<string, unknown> | undefined, base: CheckinPolicy = DEFAULT_POLICY): CheckinPolicy {
+  if (!row?.assignment_json) return base;
+  try {
+    const a = JSON.parse(String(row.assignment_json)) as { checkinPolicy?: ServerCheckinPolicy };
+    return policyFromServer(a.checkinPolicy, base);
+  } catch {
+    return base;
+  }
+}
+
 export interface AlarmScheduler {
   /** Idempotent: re-scheduling replaces the previous alarm (single request code). */
   schedule(checkinId: string, triggerAtWallMs: number, deadlineWallMs: number): Promise<void>;
@@ -135,7 +173,11 @@ export class CheckinEngine {
   }
 
   /** Schedules the next check-in unless one is outstanding or the duty ends first. */
-  async scheduleNext(dutySessionId: string, dutyEndIso: string): Promise<ScheduledCheckin | null> {
+  async scheduleNext(
+    dutySessionId: string,
+    dutyEndIso: string,
+    policy: CheckinPolicy = this.policy,
+  ): Promise<ScheduledCheckin | null> {
     const existing = await this.outstanding(dutySessionId);
     if (existing) {
       await this.alarms.schedule(
@@ -146,16 +188,9 @@ export class CheckinEngine {
       return existing;
     }
     const now = await this.clock.now();
-    const interval = secureRandomInt(
-      this.random,
-      this.policy.minIntervalMs,
-      this.policy.maxIntervalMs,
-    );
-    const at = skipQuietPeriods(
-      new Date(Date.parse(now.wallTime) + interval),
-      this.policy.quietPeriods,
-    );
-    const deadline = new Date(at.getTime() + this.policy.responseWindowMs);
+    const interval = secureRandomInt(this.random, policy.minIntervalMs, policy.maxIntervalMs);
+    const at = skipQuietPeriods(new Date(Date.parse(now.wallTime) + interval), policy.quietPeriods);
+    const deadline = new Date(at.getTime() + policy.responseWindowMs);
     if (deadline.getTime() > Date.parse(dutyEndIso)) return null;
     const checkinId = uuidV4(this.random);
     const row: ScheduledCheckin = {
@@ -173,8 +208,8 @@ export class CheckinEngine {
           scheduledFor: row.scheduledFor,
           deadlineAt: row.deadlineAt,
           intervalMs: interval,
-          responseWindowMs: this.policy.responseWindowMs,
-          policyVersion: this.policy.policyVersion,
+          responseWindowMs: policy.responseWindowMs,
+          policyVersion: policy.policyVersion,
         },
         {
           dutySessionId,
@@ -190,7 +225,7 @@ export class CheckinEngine {
                 now.monotonicMs + (at.getTime() - Date.parse(now.wallTime)),
                 now.bootId,
                 interval,
-                this.policy.responseWindowMs,
+                policy.responseWindowMs,
                 new Date().toISOString(),
               ],
             );

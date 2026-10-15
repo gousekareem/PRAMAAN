@@ -1,0 +1,345 @@
+{
+  "generatedAt": "2026-10-15T12:30:36.883Z",
+  "api": "http://localhost:4000",
+  "simulated": true,
+  "passed": 42,
+  "total": 42,
+  "steps": [
+    {
+      "scenario": "Setup",
+      "step": 1,
+      "title": "API ready",
+      "expected": "HTTP 200",
+      "observed": "HTTP 200 {\"database\":\"ok\",\"postgis\":\"3.4.2\",\"migrations\":\"7\",\"storage\":\"ok\"}",
+      "pass": true
+    },
+    {
+      "scenario": "Setup",
+      "step": 2,
+      "title": "All eight rank accounts sign in",
+      "expected": "8 × HTTP 200",
+      "observed": "hg, pc, pc.ar, hc, asi, si, ci, dsp signed in",
+      "pass": true
+    },
+    {
+      "scenario": "Four duty categories",
+      "step": 3,
+      "title": "CI lists TRAIN_BEAT",
+      "expected": "≥1 seeded duty",
+      "observed": "4 duty/duties",
+      "pass": true
+    },
+    {
+      "scenario": "Four duty categories",
+      "step": 4,
+      "title": "CI lists STATION_WATCH",
+      "expected": "≥1 seeded duty",
+      "observed": "3 duty/duties",
+      "pass": true
+    },
+    {
+      "scenario": "Four duty categories",
+      "step": 5,
+      "title": "CI lists VIP_ESCORT",
+      "expected": "≥1 seeded duty",
+      "observed": "1 duty/duties",
+      "pass": true
+    },
+    {
+      "scenario": "Four duty categories",
+      "step": 6,
+      "title": "CI lists TRACK_INCIDENT",
+      "expected": "≥1 seeded duty",
+      "observed": "1 duty/duties",
+      "pass": true
+    },
+    {
+      "scenario": "Train beat (AR + AR) with check-ins",
+      "step": 7,
+      "title": "SI creates and publishes a beat with two AR constables",
+      "expected": "HTTP 201, ASSIGNED, no fixed AR/General mix required",
+      "observed": "HTTP 201 ASSIGNED TB-20261015-001",
+      "pass": true
+    },
+    {
+      "scenario": "Train beat (AR + AR) with check-ins",
+      "step": 8,
+      "title": "PC (AR) acknowledges published instructions",
+      "expected": "HTTP 200",
+      "observed": "HTTP 200",
+      "pass": true
+    },
+    {
+      "scenario": "Train beat (AR + AR) with check-ins",
+      "step": 9,
+      "title": "Device syncs duty start, check-ins and a missed check-in",
+      "expected": "all accepted",
+      "observed": "{\"accepted\":7,\"duplicate\":0,\"rejected\":0,\"conflict\":0}",
+      "pass": true
+    },
+    {
+      "scenario": "Train beat (AR + AR) with check-ins",
+      "step": 10,
+      "title": "Device-reported start moves the duty to IN_PROGRESS",
+      "expected": "IN_PROGRESS (not proof of attendance)",
+      "observed": "IN_PROGRESS",
+      "pass": true
+    },
+    {
+      "scenario": "Train beat (AR + AR) with check-ins",
+      "step": 11,
+      "title": "Check-ins link to personnel and duty",
+      "expected": "2 check-ins with duty reference",
+      "observed": "2 rows; Vemuri Anil Kumar:MISSED, Vemuri Anil Kumar:ACKNOWLEDGED",
+      "pass": true
+    },
+    {
+      "scenario": "Train beat (AR + AR) with check-ins",
+      "step": 12,
+      "title": "Missed check-in raised as an exception visible to the ASI",
+      "expected": "1 CHECKIN_MISSED",
+      "observed": "1",
+      "pass": true
+    },
+    {
+      "scenario": "Station watch (HG + General) offline synchronisation",
+      "step": 13,
+      "title": "SI publishes a station watch (HG + PC General)",
+      "expected": "HTTP 201",
+      "observed": "HTTP 201 SW-20261015-001",
+      "pass": true
+    },
+    {
+      "scenario": "Station watch (HG + General) offline synchronisation",
+      "step": 14,
+      "title": "Events recorded offline for 85 min sync when connectivity returns",
+      "expected": "6 accepted",
+      "observed": "{\"accepted\":6,\"duplicate\":0,\"rejected\":0,\"conflict\":0}",
+      "pass": true
+    },
+    {
+      "scenario": "Station watch (HG + General) offline synchronisation",
+      "step": 15,
+      "title": "Lost response → same batch replayed",
+      "expected": "stored response, no duplicates",
+      "observed": "replayed=true",
+      "pass": true
+    },
+    {
+      "scenario": "Station watch (HG + General) offline synchronisation",
+      "step": 16,
+      "title": "Same events in a new batch",
+      "expected": "reported as duplicates",
+      "observed": "{\"accepted\":0,\"duplicate\":6,\"rejected\":0,\"conflict\":0}",
+      "pass": true
+    },
+    {
+      "scenario": "Station watch (HG + General) offline synchronisation",
+      "step": 17,
+      "title": "Handover recorded with outstanding tasks",
+      "expected": "HTTP 201",
+      "observed": "HTTP 201; warnings: Incoming person is not listed on this duty.",
+      "pass": true
+    },
+    {
+      "scenario": "Overlapping assignment",
+      "step": 18,
+      "title": "Assigning an already-engaged constable",
+      "expected": "HTTP 409 ASSIGNMENT_CONFLICT",
+      "observed": "HTTP 409 ASSIGNMENT_CONFLICT: Overlaps duty TB-20261015-001 (IN_PROGRESS).",
+      "pass": true
+    },
+    {
+      "scenario": "Overlapping assignment",
+      "step": 19,
+      "title": "HC (no duty.assign) attempts an override",
+      "expected": "HTTP 403",
+      "observed": "HTTP 403",
+      "pass": true
+    },
+    {
+      "scenario": "Overlapping assignment",
+      "step": 20,
+      "title": "SI overrides with a reason",
+      "expected": "HTTP 201 + ASSIGNMENT_CONFLICT exception",
+      "observed": "HTTP 201",
+      "pass": true
+    },
+    {
+      "scenario": "Overlapping assignment",
+      "step": 21,
+      "title": "Inactive personnel cannot be newly assigned",
+      "expected": "HTTP 400 INACTIVE_PERSONNEL",
+      "observed": "HTTP 400 INACTIVE_PERSONNEL",
+      "pass": true
+    },
+    {
+      "scenario": "VIP escort restriction",
+      "step": 22,
+      "title": "DSP opens the restricted escort",
+      "expected": "visible as a duty, details withheld",
+      "observed": "title=\"VIP Escort (restricted details)\" escortLabel=null",
+      "pass": true
+    },
+    {
+      "scenario": "VIP escort restriction",
+      "step": 23,
+      "title": "SI (duty.view_restricted) opens it",
+      "expected": "synthetic label visible",
+      "observed": "escortLabel=DEMO-VIP-A (synthetic label)",
+      "pass": true
+    },
+    {
+      "scenario": "Track incident evidence integrity",
+      "step": 24,
+      "title": "In-app evidence upload (non-graphic synthetic image)",
+      "expected": "VERIFIED (SHA-256 matches)",
+      "observed": "HTTP 200 VERIFIED",
+      "pass": true
+    },
+    {
+      "scenario": "Track incident evidence integrity",
+      "step": 25,
+      "title": "Modified image bytes are uploaded",
+      "expected": "HTTP 422, quarantined, HIGH exception",
+      "observed": "HTTP 422 EVIDENCE_HASH_MISMATCH",
+      "pass": true
+    },
+    {
+      "scenario": "Track incident evidence integrity",
+      "step": 26,
+      "title": "HC (no restricted access) opens incident evidence",
+      "expected": "HTTP 404 (not disclosed)",
+      "observed": "HTTP 404",
+      "pass": true
+    },
+    {
+      "scenario": "Track incident evidence integrity",
+      "step": 27,
+      "title": "DSP (no evidence.view_image) requests image bytes",
+      "expected": "HTTP 403",
+      "observed": "HTTP 403",
+      "pass": true
+    },
+    {
+      "scenario": "Track incident evidence integrity",
+      "step": 28,
+      "title": "CI exports the evidence package; independent verifier",
+      "expected": "PASS",
+      "observed": "PASS (17 checks)",
+      "pass": true
+    },
+    {
+      "scenario": "Unauthorised access",
+      "step": 29,
+      "title": "HG → accounts",
+      "expected": "refused (403/404)",
+      "observed": "HTTP 403",
+      "pass": true
+    },
+    {
+      "scenario": "Unauthorised access",
+      "step": 30,
+      "title": "HG → audit",
+      "expected": "refused (403/404)",
+      "observed": "HTTP 403",
+      "pass": true
+    },
+    {
+      "scenario": "Unauthorised access",
+      "step": 31,
+      "title": "DSP → system status",
+      "expected": "refused (403/404)",
+      "observed": "HTTP 403",
+      "pass": true
+    },
+    {
+      "scenario": "Unauthorised access",
+      "step": 32,
+      "title": "HG → another person",
+      "expected": "refused (403/404)",
+      "observed": "HTTP 404",
+      "pass": true
+    },
+    {
+      "scenario": "Supervisory review of exceptions",
+      "step": 33,
+      "title": "ASI runs the duty-exception evaluator",
+      "expected": "counts of newly raised exceptions",
+      "observed": "{\"evaluatedAt\":\"2026-10-15T12:30:36.536Z\",\"reportingDelayed\":11,\"overdue\":2,\"syncFailures\":0}",
+      "pass": true
+    },
+    {
+      "scenario": "Supervisory review of exceptions",
+      "step": 34,
+      "title": "Acknowledge → investigation note → resolve",
+      "expected": "HTTP 200/201/200, original check-in unchanged",
+      "observed": "201/200 RESOLVED",
+      "pass": true
+    },
+    {
+      "scenario": "Supervisory review of exceptions",
+      "step": 35,
+      "title": "Audited correction requested by PC (AR), approved by SI",
+      "expected": "original kept, correction APPROVED",
+      "observed": "201/200 (personnel row 741c0b5d)",
+      "pass": true
+    },
+    {
+      "scenario": "Supervisory review of exceptions",
+      "step": 36,
+      "title": "Invalid transition (cancel a completed duty)",
+      "expected": "HTTP 409 INVALID_TRANSITION",
+      "observed": "HTTP 409 INVALID_TRANSITION",
+      "pass": true
+    },
+    {
+      "scenario": "Reports",
+      "step": 37,
+      "title": "CI exports roster PDF",
+      "expected": "HTTP 200, audited with SHA-256",
+      "observed": "HTTP 200 sha256 55a16fd728e5ef6b…",
+      "pass": true
+    },
+    {
+      "scenario": "Reports",
+      "step": 38,
+      "title": "CI exports assignments PDF",
+      "expected": "HTTP 200, audited with SHA-256",
+      "observed": "HTTP 200 sha256 bac52b0ead4df89f…",
+      "pass": true
+    },
+    {
+      "scenario": "Reports",
+      "step": 39,
+      "title": "CI exports completion PDF",
+      "expected": "HTTP 200, audited with SHA-256",
+      "observed": "HTTP 200 sha256 fdd0137ac75dc77b…",
+      "pass": true
+    },
+    {
+      "scenario": "Reports",
+      "step": 40,
+      "title": "CI exports exceptions PDF",
+      "expected": "HTTP 200, audited with SHA-256",
+      "observed": "HTTP 200 sha256 26cf8a9930ad22bf…",
+      "pass": true
+    },
+    {
+      "scenario": "Reports",
+      "step": 41,
+      "title": "CI exports evidence-verification PDF",
+      "expected": "HTTP 200, audited with SHA-256",
+      "observed": "HTTP 200 sha256 6dc2c523e94e6b47…",
+      "pass": true
+    },
+    {
+      "scenario": "Reports",
+      "step": 42,
+      "title": "Audit chain after all scenarios",
+      "expected": "intact",
+      "observed": "ok=true checked=114",
+      "pass": true
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api, ApiError, qs } from '../services/api';
 import type { Flag, Page } from '../services/types';
 import { useApi } from '../hooks/useApi';
@@ -8,6 +8,10 @@ import { useRefreshOnChange } from '../hooks/useRefreshOnChange';
 import { ConfirmDialog, PageHeader, Pagination, formatTime } from '../components/ui/Misc';
 import { EmptyState, ErrorState, LoadingState } from '../components/ui/States';
 import { DemoBadge, StatusBadge } from '../components/ui/Badges';
+import { CategoryBadge } from '../components/ops/Ops';
+import { ExceptionNotes } from './ExceptionNotes';
+import { t, tCode } from '../i18n';
+import type { DutyCategory } from '../services/types';
 
 export const FLAG_LABELS: Record<string, string> = {
   CHECKIN_MISSED: 'Missed check-in',
@@ -25,13 +29,23 @@ export const FLAG_LABELS: Record<string, string> = {
   DEVICE_REVOCATION: 'Device revocation',
   DEVICE_INTEGRITY: 'Device integrity',
   SCREEN_RECAPTURE_RISK: 'Screen re-capture risk (experimental)',
+  DUTY_REPORTING_DELAYED: 'Delayed reporting',
+  DUTY_OVERDUE: 'Overdue duty',
+  SYNC_FAILURE: 'Synchronisation failure',
+  ASSIGNMENT_CONFLICT: 'Assignment / leave conflict',
+  INACTIVE_PERSONNEL_ASSIGNED: 'Inactive personnel assigned',
+  DUTY_EXCEPTION_REPORTED: 'Duty exception reported',
 };
 
 type Action = 'ACKNOWLEDGE' | 'ASSIGN' | 'RESOLVE' | 'DISMISS' | 'REOPEN';
 
 export function AlertsPage() {
-  const { hasRole } = useAuth();
-  const canAct = hasRole('ADMIN', 'SUPERVISOR');
+  const { can } = useAuth();
+  const canAct = can('exception.manage');
+  const [params] = useSearchParams();
+  const assignmentId = params.get('assignmentId') ?? '';
+  const [category, setCategory] = useState('');
+  const [evaluating, setEvaluating] = useState(false);
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState('ACTIVE');
   const [type, setType] = useState('');
@@ -41,8 +55,11 @@ export function AlertsPage() {
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const list = useApi(
-    () => api<Page<Flag>>(`/api/v1/dashboard/alerts${qs({ page, status, type, severity })}`),
-    [page, status, type, severity],
+    () =>
+      api<Page<Flag>>(
+        `/api/v1/dashboard/alerts${qs({ page, status, type, severity, category, assignmentId })}`,
+      ),
+    [page, status, type, severity, category, assignmentId],
   );
   const reviewers = useApi(
     () =>
@@ -81,9 +98,50 @@ export function AlertsPage() {
   return (
     <>
       <PageHeader
-        title="Alerts and review flags"
-        subtitle="Each flag records the inputs that produced it. Resolving a flag never changes the original device observation."
+        title={t('exceptions.title')}
+        subtitle={`${t('exceptions.subtitle')} Resolving an exception never changes the original record.`}
+        actions={
+          canAct ? (
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={evaluating}
+              onClick={async () => {
+                setEvaluating(true);
+                try {
+                  const r = await api<{ reportingDelayed: number; overdue: number; syncFailures: number }>(
+                    '/api/v1/exceptions/evaluate',
+                    { method: 'POST' },
+                  );
+                  setNotice({
+                    ok: true,
+                    text: `Evaluation complete: ${r.reportingDelayed} delayed reporting, ${r.overdue} overdue, ${r.syncFailures} sync failures newly raised.`,
+                  });
+                  void list.reload();
+                } catch (e) {
+                  setNotice({ ok: false, text: e instanceof ApiError ? e.message : 'Evaluation failed.' });
+                } finally {
+                  setEvaluating(false);
+                }
+              }}
+            >
+              {evaluating ? 'Evaluating…' : 'Evaluate duty exceptions now'}
+            </button>
+          ) : undefined
+        }
       />
+      {assignmentId && (
+        <p className="mb-3 text-sm">
+          Showing exceptions for one duty ·{' '}
+          <Link to={`/duties/${assignmentId}`} className="underline">
+            open duty
+          </Link>{' '}
+          ·{' '}
+          <Link to="/alerts" className="underline">
+            show all
+          </Link>
+        </p>
+      )}
       <div className="mb-3 flex flex-wrap gap-3 text-sm">
         <label>
           Status
@@ -138,6 +196,24 @@ export function AlertsPage() {
             <option>INFO</option>
           </select>
         </label>
+        <label>
+          Duty category
+          <select
+            className="input mt-1 block"
+            value={category}
+            onChange={(e) => {
+              setPage(1);
+              setCategory(e.target.value);
+            }}
+          >
+            <option value="">Any</option>
+            {(['TRAIN_BEAT', 'STATION_WATCH', 'VIP_ESCORT', 'TRACK_INCIDENT'] as const).map((c) => (
+              <option key={c} value={c}>
+                {tCode('category', c)}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
       {notice && (
         <p
@@ -169,7 +245,15 @@ export function AlertsPage() {
             <p className="mt-1 font-medium">{f.title}</p>
             <p className="text-sm text-ink-800">{f.description}</p>
             <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
-              <span className="text-ink-700">Officer: {f.officerName ?? '—'}</span>
+              <span className="text-ink-700">Personnel: {f.officerName ?? '—'}</span>
+              {f.dutyAssignmentId && (
+                <span className="inline-flex items-center gap-1">
+                  <Link to={`/duties/${f.dutyAssignmentId}`} className="font-mono text-xs underline">
+                    {f.dutyReference}
+                  </Link>
+                  {f.dutyCategory && <CategoryBadge category={f.dutyCategory as DutyCategory} />}
+                </span>
+              )}
               {f.evidenceId && (
                 <Link to={`/evidence/${f.evidenceId}`} className="underline">
                   Evidence
@@ -185,7 +269,7 @@ export function AlertsPage() {
                 aria-expanded={expanded === f.id}
                 onClick={() => setExpanded(expanded === f.id ? null : f.id)}
               >
-                {expanded === f.id ? 'Hide inputs' : 'Show inputs'}
+                {expanded === f.id ? 'Hide details' : `Inputs, notes & history${f.noteCount ? ` (${f.noteCount})` : ''}`}
               </button>
               {canAct && (
                 <span className="ml-auto flex flex-wrap gap-2">
@@ -238,9 +322,12 @@ export function AlertsPage() {
               )}
             </div>
             {expanded === f.id && (
-              <pre className="mt-2 max-h-64 overflow-auto rounded bg-paper-50 p-2 font-mono text-xs">
-                {JSON.stringify(f.inputs, null, 2)}
-              </pre>
+              <>
+                <pre className="mt-2 max-h-64 overflow-auto rounded bg-paper-50 p-2 font-mono text-xs">
+                  {JSON.stringify(f.inputs, null, 2)}
+                </pre>
+                <ExceptionNotes flagId={f.id} canAdd={canAct} onChange={() => void list.reload()} />
+              </>
             )}
           </li>
         ))}

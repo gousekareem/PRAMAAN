@@ -75,6 +75,19 @@ export function HomeScreen({ navigation }: NativeStackScreenProps<RootStack, 'Ho
       <Card title="Duty session">
         {active ? (
           <>
+            {active.assignment_json ? (
+              <Row
+                k="Duty"
+                v={(() => {
+                  try {
+                    const a = JSON.parse(String(active.assignment_json)) as { categoryLabel: string; referenceCode: string };
+                    return `${a.categoryLabel} · ${a.referenceCode}`;
+                  } catch {
+                    return '—';
+                  }
+                })()}
+              />
+            ) : null}
             <Row k="Status" v="Active — duty monitoring notification is shown" />
             <Row k="Planned end" v={new Date(String(active.planned_end)).toLocaleString()} />
             <Row
@@ -108,24 +121,80 @@ export function HomeScreen({ navigation }: NativeStackScreenProps<RootStack, 'Ho
             />
           </>
         ) : duties.length ? (
-          duties.map((d) => (
-            <Button
-              key={d.id}
-              title={`Start duty ${new Date(d.plannedStart).toLocaleTimeString()}–${new Date(d.plannedEnd).toLocaleTimeString()} (${d.zones.map((z) => z.code).join(', ')})`}
-              busy={busy}
-              onPress={async () => {
-                setBusy(true);
-                try {
-                  await s.startDuty(d.id);
-                  await refresh();
-                } catch (e) {
-                  setError((e as Error).message);
-                } finally {
-                  setBusy(false);
-                }
-              }}
-            />
-          ))
+          duties.map((d) => {
+            const a = d.assignment;
+            const time = `${new Date(d.plannedStart).toLocaleString()} – ${new Date(d.plannedEnd).toLocaleTimeString()}`;
+            const mustAccept = !!a && a.acceptRequired && a.personnelStatus === 'ASSIGNED';
+            return (
+              <Card key={d.id} title={a ? `${a.categoryLabel} · ${a.referenceCode}` : 'Individual duty session'}>
+                {a ? <Text style={styles.p}>{a.title}</Text> : null}
+                <Row k="Planned" v={time} />
+                {a?.reportingLocation ? <Row k="Report to" v={a.reportingLocation} /> : null}
+                {a?.trainRef ? <Row k="Train / service" v={a.trainRef} /> : null}
+                {a?.escortLabel ? <Row k="Escort" v={a.escortLabel} /> : null}
+                {a?.incidentRef ? <Row k="Incident ref." v={a.incidentRef} /> : null}
+                {a ? (
+                  <Row
+                    k="Check-ins"
+                    v={`every ${a.checkinPolicy.minIntervalMin}–${a.checkinPolicy.maxIntervalMin} min, respond within ${a.checkinPolicy.responseWindowSec}s`}
+                  />
+                ) : (
+                  <Row k="Zones" v={d.zones.map((z) => z.code).join(', ') || '—'} />
+                )}
+                {a?.instructions ? (
+                  <>
+                    <Text style={styles.p}>
+                      Instructions v{a.instructions.version}: {a.instructions.body}
+                    </Text>
+                    {!a.instructions.acknowledged ? (
+                      <Button
+                        kind="secondary"
+                        title={`Acknowledge instructions v${a.instructions.version}`}
+                        onPress={async () => {
+                          try {
+                            await s.acknowledgeInstructions(a.instructions!.id);
+                            await refresh();
+                          } catch (e) {
+                            setError((e as Error).message);
+                          }
+                        }}
+                      />
+                    ) : (
+                      <Notice tone="ok">Instructions acknowledged.</Notice>
+                    )}
+                  </>
+                ) : null}
+                {mustAccept ? (
+                  <Button
+                    title="Accept assignment"
+                    onPress={async () => {
+                      try {
+                        await s.acceptAssignment(a!.id);
+                        await refresh();
+                      } catch (e) {
+                        setError((e as Error).message);
+                      }
+                    }}
+                  />
+                ) : null}
+                <Button
+                  title="Start duty"
+                  busy={busy}
+                  onPress={async () => {
+                    setBusy(true);
+                    try {
+                      await s.startDuty(d.id);
+                      await refresh();
+                    } catch (e) {
+                      setError((e as Error).message);
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                />
+              </Card>
+            );
+          })
         ) : (
           <Text style={styles.p}>
             No assigned duty sessions

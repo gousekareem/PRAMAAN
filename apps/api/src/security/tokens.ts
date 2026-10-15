@@ -3,8 +3,9 @@ import { SignJWT, jwtVerify, errors } from 'jose';
 import type { Env } from '../config/env.js';
 import { AppError } from '../middleware/errors.js';
 
-export type Role = 'ADMIN' | 'SUPERVISOR' | 'REVIEWER' | 'OFFICER';
-export const ROLES: readonly Role[] = ['ADMIN', 'SUPERVISOR', 'REVIEWER', 'OFFICER'];
+/** Role codes live in the `roles` table (configurable); the token claim is informational only. */
+export type Role = string;
+export const ROLE_CODE = /^[A-Z_]{2,32}$/;
 
 export interface AccessClaims {
   sub: string;
@@ -41,7 +42,7 @@ export class TokenService {
         algorithms: ['HS256'],
       });
       const role = payload.role as Role;
-      if (!payload.sub || !ROLES.includes(role) || typeof payload.fam !== 'string')
+      if (!payload.sub || typeof role !== 'string' || !ROLE_CODE.test(role) || typeof payload.fam !== 'string')
         throw new AppError(401, 'TOKEN_INVALID', 'Invalid access token.');
       return {
         sub: payload.sub,

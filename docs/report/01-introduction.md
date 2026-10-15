@@ -7,7 +7,19 @@ Andhra Pradesh. It is an academic prototype: it has not been commissioned, endor
 any government body, and all data shipped with it is synthetic.
 
 The system consists of an Android duty application (React Native + Kotlin), a Node.js/PostgreSQL/PostGIS
-backend, a React supervisory dashboard and an independent evidence-package verifier.
+backend, a React dashboard and an independent evidence-package verifier.
+
+**Version 2.0** extends the prototype with operational information obtained from an Assistant Superintendent
+of Police:
+* the railway-police hierarchy (HG, PC with AR/General classification, HC, ASI, SI, CI, DSP);
+* rank-based accounts with backend-enforced permissions and data scopes;
+* four principal duty categories (Train Beat, Station Watch, VIP Escort, Track Incident) with flexible,
+  configurable staffing;
+* rosters, handovers, versioned instructions, exception management, audited corrections, notifications,
+  reports and a protected system-status page.
+
+These are built on the unchanged 1.0 presence-verification engine. All demonstration data is synthetic, and every
+operational rule is a configurable default awaiting departmental validation.
 
 ## Problem statement
 Patrol accountability commonly relies on manual beat books, verbal reports, periodic photographs and
@@ -32,6 +44,13 @@ GPS-only tracking. In railway environments these mechanisms are weak:
 6. Give supervisors a **review workflow** that explains each flag, its inputs and innocent explanations,
    and audits every action — never automated conclusions.
 7. Be honest about limits: document residual risks and what was and was not verified.
+8. *(2.0)* Model the supplied rank hierarchy and personnel classification correctly (HG is outside the rank
+   ladder; AR is a constable classification) and enforce least-privilege permissions and data scopes on the
+   server.
+9. *(2.0)* Support the four duty categories with flexible staffing, conflict and leave detection, and
+   history-preserving changes, without treating an assignment as proof of attendance.
+10. *(2.0)* Give each rank a coherent, permission-appropriate dashboard backed only by stored data, with
+    exportable, audited reports.
 
 ## Existing approaches and their limitations vs. the proposed system
 
@@ -47,9 +66,10 @@ GPS-only tracking. In railway environments these mechanisms are weak:
 | Verification by third parties | Not possible | Exported package verifiable offline (PASS / FAIL / INCOMPLETE) |
 
 ## Scope of this document
-Chapters 2–9 describe requirements, architecture, design and implementation; chapters 10–12 security,
-threats and governance; chapters 13–16 testing, deployment, demonstration and screenshots; chapter 17
-traceability; chapter 18 limitations, future work and conclusion. Commands for setup and deployment are
+Chapter 2 gives the requirements. Chapters 3–5 cover the railway-police workflow, the authorisation design and
+the operational procedures. Then come architecture, data flow, mobile, backend, database and API design;
+security, threats and governance; testing, results and performance; deployment, demonstration and screenshots;
+traceability; and finally limitations, future work and the conclusion. Commands for setup and deployment are
 in the separate *Windows and Render Deployment Guide*.
 
 **Developer:** SHAIK GOUSE KAREEM · https://www.linkedin.com/in/gousekareem/

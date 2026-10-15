@@ -1,26 +1,57 @@
 # Dashboard screenshots
 
-Real screenshots captured with Playwright (Chromium) from the production build (`vite build` + `vite preview`)
-connected to the running API after the simulated end-to-end demo (`tools/docs/capture_screenshots.py`).
-The authoring environment had no internet access, so **OpenStreetMap basemap tiles could not load**; zone
-polygons, markers, accuracy circles and labels are rendered from the PRAMAAN API.
+Real screenshots captured with Playwright (Chromium). They were taken from the production build (`vite build`
++ `vite preview`) connected to the running API after `pnpm db:reset-demo` and the scenario run (`pnpm scenarios`,
+simulated devices), using `tools/docs/capture_screenshots.py`. All data shown is synthetic.
 
-![Sign-in page](../screenshots/01-login.png)
+The authoring environment had no internet access, so OpenStreetMap basemap tiles could not load. The map page
+renders zones and markers from the API.
 
-![Overview (supervisor)](../screenshots/02-overview.png)
+![Sign-in page (no credentials displayed)](../screenshots/01-login.png)
 
-![Map with last-known observation and freshness label](../screenshots/03-map.png)
+![Overview as SI — scoped counts, duties by category, exceptions](../screenshots/02-overview-si.png)
 
-![Alerts and review flags](../screenshots/04-alerts.png)
+![Duty assignments list (all categories) with personnel classes](../screenshots/03-duty-assignments.png)
 
-![Evidence list with SHA-256 prefixes and experimental screen-risk scores](../screenshots/05-evidence-list.png)
+![Train beat detail — device vs server start time, check-ins, versioned instructions, append-only history](../screenshots/04-duty-detail-train-beat.png)
 
-![Evidence detail: integrity, separated times, ledger neighbours, chain of custody](../screenshots/06-evidence-detail.png)
+![Station watch detail — shift staffing and recorded handover](../screenshots/05-duty-detail-station-watch.png)
 
-![Officer detail: duty, devices, check-in history](../screenshots/07-officer.png)
+![New VIP escort form — synthetic label only, flexible staffing](../screenshots/06-duty-form-vip.png)
 
-![Registered devices with key fingerprints and chain heads](../screenshots/08-devices.png)
+![Weekly duty roster — categories, leave (hatched) and conflicts (red outline)](../screenshots/07-roster-week.png)
 
-![Audit history with checkpoint](../screenshots/09-audit.png)
+![Monthly duty roster](../screenshots/08-roster-month.png)
 
-![Phone-width layout as read-only reviewer, footer attribution](../screenshots/10-mobile-overview-reviewer.png)
+![Check-ins & presence — person, duty, device/server times, location provenance](../screenshots/09-checkins.png)
+
+![Exceptions with inputs, investigation notes and audited action history](../screenshots/10-exceptions.png)
+
+![Evidence verification — verified and failed (tampered) items linked to duties](../screenshots/11-evidence.png)
+
+![Personnel directory — rank / classification, unit, open duties](../screenshots/12-personnel.png)
+
+![Personnel detail — duty history, unavailability, exceptions](../screenshots/13-personnel-detail.png)
+
+![Audited corrections — original kept beside the approved value](../screenshots/14-corrections.png)
+
+![Reports — CSV/PDF exports (audited)](../screenshots/15-reports.png)
+
+![Overview as DSP — sub-division scope](../screenshots/16-overview-dsp.png)
+
+![VIP escorts as DSP — restricted details withheld](../screenshots/17-vip-escorts-dsp-restricted.png)
+
+![My duties as HG — personal view only](../screenshots/18-my-duties-hg.png)
+
+![Duty policy and role–permission matrix (prototype defaults)](../screenshots/19-policy-roles.png)
+
+![Login accounts (separate from personnel records)](../screenshots/20-accounts.png)
+
+![Protected system status — measured values; backup shown from a real drill result](../screenshots/21-system-status.png)
+
+![Audit history](../screenshots/22-audit.png)
+
+![Account & sessions — permissions and session management](../screenshots/23-account-sessions.png)
+
+![Phone-width layout as PC — Armed Reserve (accept / acknowledge)](../screenshots/24-mobile-width-my-duties-pc-ar.png)
+

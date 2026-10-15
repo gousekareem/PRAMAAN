@@ -23,10 +23,27 @@ describe('AppFooter', () => {
     ).toBeInTheDocument();
   });
 
-  it.each(['/', '/map', '/officers', '/duties', '/evidence', '/alerts', '/audit', '/devices'])(
+  it.each([
+    '/',
+    '/map',
+    '/officers',
+    '/duties',
+    '/duties/category/train-beats',
+    '/roster',
+    '/checkins',
+    '/personnel',
+    '/reports',
+    '/my',
+    '/account',
+    '/evidence',
+    '/alerts',
+    '/audit',
+    '/devices',
+    '/admin/system',
+  ])(
     'is rendered once by the shared layout on %s',
     (route) => {
-      mockFetch({ '/api/v1/': emptyPage });
+      mockFetch({ '/api/v1/': emptyPage, '/api/v1/notifications': { items: [], unread: 0 } });
       renderWith(
         <Routes>
           <Route element={<AppLayout />}>

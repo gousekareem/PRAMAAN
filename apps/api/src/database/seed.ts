@@ -4,6 +4,7 @@ import type pg from 'pg';
 import { hashPassword, passwordPolicyIssues } from '../security/passwords.js';
 import { findMigrationsDir } from './migrate.js';
 import { appendAudit } from '../services/audit.js';
+import { seedOperationalDemo } from './demo-operations.js';
 
 /** Deterministic identifiers for the SYNTHETIC demonstration dataset. */
 export const DEMO = {
@@ -38,6 +39,22 @@ export const DEMO = {
 } as const;
 
 const PRAMAAN_TABLES = [
+  'notifications',
+  'record_corrections',
+  'review_flag_notes',
+  'duty_instruction_acks',
+  'duty_instructions',
+  'duty_handovers',
+  'duty_assignment_changes',
+  'duty_assignment_personnel',
+  'personnel_unavailability',
+  'duty_assignments',
+  'duty_category_eligibility',
+  'duty_categories',
+  'role_permissions',
+  'permissions',
+  'roles',
+  'units',
   'audit_events',
   'audit_chain_head',
   'review_flags',
@@ -65,7 +82,12 @@ export async function dropAllPramaanTables(pool: pg.Pool): Promise<void> {
   await pool.query(`DROP TABLE IF EXISTS ${PRAMAAN_TABLES.join(', ')} CASCADE`);
 }
 
-export async function seedDemo(pool: pg.Pool, password: string, now = new Date()): Promise<void> {
+export async function seedDemo(
+  pool: pg.Pool,
+  password: string,
+  now = new Date(),
+  referenceDate: Date = now,
+): Promise<void> {
   const issues = passwordPolicyIssues(password);
   if (issues.length) throw new Error(`SEED_DEMO_PASSWORD must contain ${issues.join(', ')}`);
   const pw = await hashPassword(password);
@@ -79,8 +101,8 @@ export async function seedDemo(pool: pg.Pool, password: string, now = new Date()
     await client.query(zonesSql);
     await client.query(
       `INSERT INTO officers (id, employee_ref, display_name, rank, station, is_demo) VALUES
-        ($1, 'DEMO-PC-001', 'DEMO Constable A. Kumar', 'CONSTABLE', 'DEMO Guntur GRP (fictional)', true),
-        ($2, 'DEMO-HC-002', 'DEMO Head Constable S. Reddy', 'HEAD_CONSTABLE', 'DEMO Guntur GRP (fictional)', true)
+        ($1, 'DEMO-PC-001', 'DEMO Constable A. Kumar', 'PC', 'DEMO Guntur GRP (fictional)', true),
+        ($2, 'DEMO-HC-002', 'DEMO Head Constable S. Reddy', 'HC', 'DEMO Guntur GRP (fictional)', true)
        ON CONFLICT (id) DO NOTHING`,
       [DEMO.officers.o1, DEMO.officers.o2],
     );
@@ -131,6 +153,7 @@ export async function seedDemo(pool: pg.Pool, password: string, now = new Date()
       `INSERT INTO duty_zone_assignments VALUES ($1,$2),($1,$3),($4,$5) ON CONFLICT DO NOTHING`,
       [DEMO.duties.d1, DEMO.zones.pf1, DEMO.zones.concourse, DEMO.duties.d2, DEMO.zones.yard],
     );
+    await seedOperationalDemo(client, referenceDate, [DEMO.officers.o1, DEMO.officers.o2]);
     await appendAudit(client, {
       actorUserId: null,
       actorRole: 'SYSTEM',
