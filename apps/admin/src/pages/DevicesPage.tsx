@@ -27,8 +27,8 @@ interface DeviceRow {
 }
 
 export function DevicesPage() {
-  const { hasRole } = useAuth();
-  const isAdmin = hasRole('ADMIN');
+  const { can } = useAuth();
+  const isAdmin = can('device.approve');
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState('');
   const [pending, setPending] = useState<{ d: DeviceRow; action: 'approve' | 'revoke' } | null>(

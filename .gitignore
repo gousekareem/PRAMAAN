@@ -28,5 +28,3 @@ apps/mobile/android/keystore.properties
 # backups
 backups/
 *.dump
-
-apps/mobile/android/app/debug.keystore

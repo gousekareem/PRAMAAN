@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import type { Request } from 'express';
 import { AppError } from '../middleware/errors.js';
-import type { AuthUser } from '../middleware/auth.js';
 
 export const uuidParam = z
   .string()
@@ -38,12 +37,6 @@ export const isoQuery = z
   .string()
   .max(40)
   .refine((v) => !Number.isNaN(Date.parse(v)), 'must be an ISO timestamp');
-
-/** Object-level authorisation: officers may only access their own records. */
-export function assertOfficerScope(user: AuthUser, officerId: string): void {
-  if (user.role === 'OFFICER' && user.officerId !== officerId)
-    throw new AppError(404, 'NOT_FOUND', 'Resource not found.');
-}
 
 /** Classifies observation freshness so stale data is never presented as live. */
 export function freshness(recordedAt: Date, receivedAt: Date, now = new Date()) {

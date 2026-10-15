@@ -93,19 +93,19 @@ def cover(title: str, subtitle: str, doc_type: str) -> str:
 <div class="cover">
   <div class="band">
     <h1>PRAMAAN</h1>
-    <div class="sub">Cryptographic Proof-of-Presence Engine for Guntur Railway Police</div>
+    <div class="sub">Railway-police duty operations and cryptographic proof-of-presence (academic prototype)</div>
     <div style="margin-top:18mm;font-size:16pt;font-weight:600">{html.escape(title)}</div>
     <div style="font-size:11pt;margin-top:4px">{html.escape(subtitle)}</div>
   </div>
   <div class="meta">
     <table>
       <tr><td><b>Document</b></td><td>{html.escape(doc_type)}</td></tr>
-      <tr><td><b>Version</b></td><td>1.0 · {today}</td></tr>
+      <tr><td><b>Version</b></td><td>2.0 · {today}</td></tr>
       <tr><td><b>Developer</b></td><td>SHAIK GOUSE KAREEM · https://www.linkedin.com/in/gousekareem/</td></tr>
       <tr><td><b>Context</b></td><td>B.Tech final-year capstone project (academic prototype)</td></tr>
     </table>
     <p class="disclaimer"><b>Disclaimer.</b> PRAMAAN is an academic prototype. It has not been commissioned, approved,
-    certified or deployed by Guntur Railway Police, Indian Railways or any government authority. All data shown is
+    certified or deployed by Guntur Railway Police, the Andhra Pradesh Railway Police, Indian Railways or any government authority. Operational rules are configurable prototype defaults that require departmental validation. All data shown is
     synthetic. Cryptographic integrity checks do not establish legal admissibility or that an event occurred.</p>
     <p style="font-size:9pt">© 2026 SHAIK GOUSE KAREEM. All Rights Reserved.</p>
   </div>
@@ -158,6 +158,8 @@ def build_documentation(out: Path):
     parts = [
         (r / "01-introduction.md", None, ""),
         (r / "02-requirements.md", None, ""),
+        (DOCS / "railway-operations.md", None, ""),
+        (DOCS / "authorization.md", None, "small"),
         (DOCS / "architecture.md", "System architecture", ""),
         (DOCS / "data-flow.md", "Data flow, offline synchronisation and time", ""),
         (r / "05-mobile.md", None, ""),
@@ -167,6 +169,7 @@ def build_documentation(out: Path):
         (DOCS / "security-model.md", "Cryptographic integrity, authentication and security model", ""),
         (DOCS / "threat-matrix.md", "Security threat matrix", "small"),
         (DOCS / "privacy-governance.md", None, ""),
+        (DOCS / "operational-procedures.md", None, ""),
         (DOCS / "testing.md", "Testing strategy", ""),
         (DOCS / "results" / "test-results-summary.md", "Test execution results", ""),
         (DOCS / "performance.md", None, ""),

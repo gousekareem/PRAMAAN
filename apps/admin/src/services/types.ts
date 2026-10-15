@@ -1,12 +1,17 @@
-export type Role = 'ADMIN' | 'SUPERVISOR' | 'REVIEWER' | 'OFFICER';
+/** Role codes come from the server's configurable `roles` table (HG, PC, HC, ASI, SI, CI, DSP, ADMIN, …). */
+export type Role = string;
 
 export interface User {
   id: string;
   email: string;
   displayName: string;
   role: Role;
+  roleLabel?: string;
   officerId: string | null;
   isDemo: boolean;
+  /** Permission codes granted by the server (UI hints only — every request is re-authorised server-side). */
+  permissions?: string[];
+  scopeLevel?: string;
 }
 
 export interface Page<T> {
@@ -72,6 +77,10 @@ export interface Flag {
   resolutionNote: string | null;
   createdAt: string;
   isDemo: boolean | null;
+  dutyAssignmentId?: string | null;
+  dutyReference?: string | null;
+  dutyCategory?: string | null;
+  noteCount?: number;
 }
 
 export interface EvidenceListItem {
@@ -162,4 +171,210 @@ export interface EvidenceDetail {
   };
   canViewImage: boolean;
   custody: CustodyRecord[];
+}
+
+// ---- PRAMAAN 2.0 railway-police operations ------------------------------------------------
+export type DutyCategory = 'TRAIN_BEAT' | 'STATION_WATCH' | 'VIP_ESCORT' | 'TRACK_INCIDENT';
+export type DutyStatus =
+  | 'DRAFT'
+  | 'ASSIGNED'
+  | 'ACCEPTED'
+  | 'IN_PROGRESS'
+  | 'COMPLETED'
+  | 'EXCEPTION_REPORTED'
+  | 'CANCELLED';
+
+export interface DutyPersonnelSummary {
+  personnelId: string;
+  officerId: string;
+  name: string;
+  personnelClass: string;
+  roleInDuty: 'LEAD' | 'MEMBER';
+  status: string;
+}
+
+export interface DutyListItem {
+  id: string;
+  referenceCode: string;
+  category: DutyCategory;
+  categoryLabel: string;
+  isRestricted: boolean;
+  detailsVisible: boolean;
+  title: string;
+  unitId: string;
+  unitName: string;
+  plannedStart: string;
+  plannedEnd: string;
+  status: DutyStatus;
+  reportingLocation: string | null;
+  trainRef: string | null;
+  stationName: string | null;
+  escortLabel: string | null;
+  incidentRef: string | null;
+  supervisorName: string | null;
+  isDemo: boolean;
+  personnel: DutyPersonnelSummary[];
+  openExceptions: number;
+  openConflicts: number;
+  checkinsAcknowledged: number;
+  checkinsMissed: number;
+}
+
+export interface DutyPersonnelRow {
+  personnelId: string;
+  officerId: string;
+  name: string;
+  personnelRef: string;
+  personnelClass: string;
+  roleInDuty: 'LEAD' | 'MEMBER';
+  status: 'ASSIGNED' | 'ACCEPTED' | 'REMOVED' | 'REPLACED';
+  assignedAt: string;
+  acceptedAt: string | null;
+  removedAt: string | null;
+  removalReason: string | null;
+  conflictOverrideReason: string | null;
+  isActive: boolean;
+  dutySessionId: string | null;
+  sessionStatus: string | null;
+  deviceReportedStart: string | null;
+  serverReceivedStart: string | null;
+  deviceReportedEnd: string | null;
+  checkinsAcknowledged: number;
+  checkinsLate: number;
+  checkinsMissed: number;
+  lastDeviceSyncAt: string | null;
+}
+
+export interface DutyDetail extends DutyListItem {
+  notes: string | null;
+  acceptRequired: boolean;
+  supervisorOfficerId: string | null;
+  stationUnitId: string | null;
+  completionNote: string | null;
+  completedAt: string | null;
+  cancelledReason: string | null;
+  createdByName: string;
+  version: number;
+  checkinPolicy: {
+    minIntervalMin: number;
+    maxIntervalMin: number;
+    responseWindowSec: number;
+    reportingWindowMin: number;
+    graceMin: number;
+  };
+  personnelHistory: DutyPersonnelRow[];
+  instructions: {
+    id: string;
+    version: number;
+    body: string | null;
+    bodySha256: string;
+    publishedAt: string;
+    publishedByName: string;
+    acknowledgements: { officerId: string; name: string; acknowledgedAt: string }[];
+  }[];
+  handovers: {
+    id: string;
+    handoverAt: string;
+    outgoingOfficerId: string;
+    outgoingName: string;
+    incomingOfficerId: string;
+    incomingName: string;
+    outstandingTasks: string | null;
+    outgoingAckAt: string | null;
+    incomingAckAt: string | null;
+    recordedByName: string;
+    recordedAt: string;
+  }[];
+  changes: {
+    id: string;
+    changeType: string;
+    before: Record<string, unknown> | null;
+    after: Record<string, unknown> | null;
+    reason: string | null;
+    occurredAt: string;
+    actorName: string;
+  }[];
+  exceptions: { id: string; flagType: string; severity: string; status: string; title: string; createdAt: string; officerName: string | null }[];
+  evidence: { evidenceId: string; status: string; officerId: string; officerName: string; createdAt: string; uploadAttempts: number }[];
+  warnings: string[];
+  myAssignment: { personnelId: string; status: string } | null;
+  actions: {
+    allowedTransitions: DutyStatus[];
+    canEdit: boolean;
+    canAssign: boolean;
+    canPublishInstructions: boolean;
+    canRecordHandover: boolean;
+    canAccept: boolean;
+    canOverrideConflicts: boolean;
+  };
+}
+
+export interface Conflict {
+  type: 'ASSIGNMENT' | 'LEGACY_SESSION' | 'UNAVAILABLE';
+  id: string;
+  reference: string;
+  start: string;
+  end: string;
+  detail: string;
+}
+
+export interface Unit {
+  id: string;
+  code: string;
+  name: string;
+  unitType: 'SUBDIVISION' | 'CIRCLE' | 'STATION' | 'OTHER';
+  parentId: string | null;
+  isActive: boolean;
+  isDemo: boolean;
+}
+
+export interface PersonnelItem {
+  id: string;
+  personnelRef: string;
+  displayName: string;
+  personnelCategory: 'POLICE' | 'HOME_GUARD';
+  rank: string | null;
+  constableCategory: 'AR' | 'GENERAL' | null;
+  gender: string;
+  unitId: string | null;
+  unitName: string | null;
+  isActive: boolean;
+  isDemo: boolean;
+  personnelClass: string;
+  accountRole?: string | null;
+  openDuties?: number;
+  lastSyncAt?: string | null;
+}
+
+export interface CategoryPolicy {
+  code: DutyCategory;
+  label: string;
+  description: string;
+  isRestricted: boolean;
+  minPersonnel: number;
+  requiresSupervisor: boolean;
+  acceptRequired: boolean;
+  eligibilityMode: 'BLOCK' | 'WARN';
+  checkinMinIntervalMin: number;
+  checkinMaxIntervalMin: number;
+  responseWindowSec: number;
+  reportingWindowMin: number;
+  graceMin: number;
+  maxDurationHours: number;
+  policyVersion: number;
+  validationNote: string;
+  eligible: string[];
+}
+
+export interface NotificationItem {
+  id: string;
+  kind: string;
+  title: string;
+  body: string;
+  relatedType: string | null;
+  relatedId: string | null;
+  deliveryStatus: 'QUEUED' | 'DELIVERED' | 'READ';
+  createdAt: string;
+  deliveredAt: string | null;
+  readAt: string | null;
 }

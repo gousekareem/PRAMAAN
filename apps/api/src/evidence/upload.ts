@@ -94,7 +94,7 @@ export async function handleEvidenceUpload(
   evidenceId: string,
   requestId: string,
 ) {
-  if (user.role !== 'OFFICER')
+  if (!user.permissions.has('checkin.perform') || !user.officerId)
     throw new AppError(403, 'FORBIDDEN', 'Only officer devices upload evidence.');
   const row = (
     await ctx.pool.query<{

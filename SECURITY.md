@@ -10,7 +10,7 @@ deployments you do not own.
 
 ## Scope and design documents
 - Security model: `docs/security-model.md`
-- Threat matrix (38 threats, residual ratings): `docs/threat-matrix.md`
+- Threat matrix (46 threats incl. 2.0 authorisation/operations threats, residual ratings): `docs/threat-matrix.md`
 - Known limitations: `docs/limitations.md`
 
 ## Secrets

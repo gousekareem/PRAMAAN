@@ -2,7 +2,15 @@ import { Router } from 'express';
 import { z } from 'zod';
 import type { AppContext } from '../context.js';
 import { withTransaction } from '../database/pool.js';
-import { authUser, h, requireRole } from '../middleware/auth.js';
+import { authUser, h, requirePermission, type AuthUser } from '../middleware/auth.js';
+import { AppError } from '../middleware/errors.js';
+import {
+  assertOfficerInScope,
+  canSeeRestrictedDetails,
+  officerScopeSql,
+  restrictedAssignmentForSession,
+  restrictedSessionFilterSql,
+} from '../security/access.js';
 import { reqId } from '../middleware/request-id.js';
 import { appendAudit } from '../services/audit.js';
 import {
@@ -13,7 +21,6 @@ import {
   renderEvidenceReport,
 } from '../evidence/export.js';
 import {
-  assertOfficerScope,
   isoQuery,
   pageQuery,
   pageResult,
@@ -25,6 +32,19 @@ import { sha256 } from '../security/tokens.js';
 
 export function evidenceRoutes(ctx: AppContext): Router {
   const r = Router();
+  /** Loads evidence and enforces scope + restricted-duty rules (out of scope => 404). */
+  const loadAuthorised = async (u: AuthUser, id: string) => {
+    const ev = await loadEvidence(ctx, id);
+    await assertOfficerInScope(ctx.pool, u, ev.officer_id);
+    const restricted = await restrictedAssignmentForSession(ctx.pool, ev.duty_session_id);
+    if (
+      restricted &&
+      ev.officer_id !== u.officerId &&
+      !(await canSeeRestrictedDetails(ctx.pool, u, restricted))
+    )
+      throw new AppError(404, 'NOT_FOUND', 'Resource not found.');
+    return ev;
+  };
   const audit = (
     req: Parameters<typeof authUser>[0],
     action: string,
@@ -48,12 +68,15 @@ export function evidenceRoutes(ctx: AppContext): Router {
 
   r.get(
     '/',
-    requireRole('ADMIN', 'SUPERVISOR', 'REVIEWER'),
+    requirePermission('evidence.view'),
     h(async (req, res) => {
+      const u = authUser(req);
       const q = pageQuery
         .extend({
           status: z.enum(['AWAITING_UPLOAD', 'VERIFIED', 'QUARANTINED']).optional(),
           officerId: uuidParam.optional(),
+          assignmentId: uuidParam.optional(),
+          category: z.enum(['TRAIN_BEAT', 'STATION_WATCH', 'VIP_ESCORT', 'TRACK_INCIDENT']).optional(),
           hash: z
             .string()
             .regex(/^[0-9a-f]{4,64}$/)
@@ -63,12 +86,25 @@ export function evidenceRoutes(ctx: AppContext): Router {
         })
         .parse(req.query);
       const { limit, offset } = paging(q);
-      const where: string[] = [];
       const args: unknown[] = [];
+      const where: string[] = [
+        officerScopeSql(u, 'e.officer_id', args),
+        restrictedSessionFilterSql(u, 'e.duty_session_id', 'e.officer_id', args),
+      ];
       const push = (sql: string, v: unknown) => {
         args.push(v);
         where.push(sql.replace('?', `$${args.length}`));
       };
+      if (q.assignmentId)
+        push(
+          'e.duty_session_id IN (SELECT duty_session_id FROM duty_assignment_personnel WHERE assignment_id = ?)',
+          q.assignmentId,
+        );
+      if (q.category)
+        push(
+          'e.duty_session_id IN (SELECT xp.duty_session_id FROM duty_assignment_personnel xp JOIN duty_assignments xa ON xa.id = xp.assignment_id WHERE xa.category = ?)',
+          q.category,
+        );
       if (q.status) push('e.status = ?', q.status);
       if (q.officerId) push('e.officer_id = ?', q.officerId);
       if (q.hash) push('e.declared_image_sha256 LIKE ?', `${q.hash}%`);
@@ -84,7 +120,10 @@ export function evidenceRoutes(ctx: AppContext): Router {
       const { rows } = await ctx.pool.query(
         `SELECT e.evidence_id AS "evidenceId", e.status, e.officer_id AS "officerId", o.display_name AS "officerName", e.duty_session_id AS "dutySessionId",
               e.declared_image_sha256 AS "imageSha256", e.manifest->'capture'->>'deviceWallTime' AS "capturedAtDevice",
-              d.server_received_at AS "serverReceivedAt", e.verified_at AS "verifiedAt", (e.screen_risk->>'score')::float AS "screenRiskScore", o.is_demo AS "isDemo"
+              d.server_received_at AS "serverReceivedAt", e.verified_at AS "verifiedAt", (e.screen_risk->>'score')::float AS "screenRiskScore", o.is_demo AS "isDemo",
+              e.upload_attempts AS "uploadAttempts",
+              (SELECT json_build_object('id', xa.id, 'referenceCode', xa.reference_code, 'category', xa.category)
+                 FROM duty_assignment_personnel xp JOIN duty_assignments xa ON xa.id = xp.assignment_id WHERE xp.duty_session_id = e.duty_session_id) AS assignment
          FROM evidence_objects e JOIN officers o ON o.id = e.officer_id JOIN device_events d ON d.event_id = e.event_id ${w}
         ORDER BY e.created_at DESC LIMIT ${limit} OFFSET ${offset}`,
         args,
@@ -95,12 +134,11 @@ export function evidenceRoutes(ctx: AppContext): Router {
 
   r.get(
     '/:id',
-    requireRole('ADMIN', 'SUPERVISOR', 'REVIEWER', 'OFFICER'),
+    requirePermission('evidence.view'),
     h(async (req, res) => {
       const id = param(req, 'id');
-      const ev = await loadEvidence(ctx, id);
       const u = authUser(req);
-      assertOfficerScope(u, ev.officer_id);
+      const ev = await loadAuthorised(u, id);
       const event = (
         await ctx.pool.query<{
           device_sequence_number: number;
@@ -162,7 +200,13 @@ export function evidenceRoutes(ctx: AppContext): Router {
           previousEventHash: event.previous_event_hash,
           neighbours,
         },
-        canViewImage: u.role === 'ADMIN' || u.role === 'SUPERVISOR',
+        canViewImage: u.permissions.has('evidence.view_image'),
+        assignment: (
+          await ctx.pool.query(
+            `SELECT a.id, a.reference_code AS "referenceCode", a.category FROM duty_assignment_personnel p JOIN duty_assignments a ON a.id = p.assignment_id WHERE p.duty_session_id = $1`,
+            [ev.duty_session_id],
+          )
+        ).rows[0] ?? null,
         custody: await custodyRecords(ctx, id),
       });
     }),
@@ -171,10 +215,10 @@ export function evidenceRoutes(ctx: AppContext): Router {
   /** Image bytes: SUPERVISOR/ADMIN only; re-verified on every read; audited. */
   r.get(
     '/:id/content',
-    requireRole('ADMIN', 'SUPERVISOR'),
+    requirePermission('evidence.view_image'),
     h(async (req, res) => {
       const id = param(req, 'id');
-      const ev = await loadEvidence(ctx, id);
+      const ev = await loadAuthorised(authUser(req), id);
       const bytes = await readVerifiedBytes(ctx, ev);
       await audit(req, 'EVIDENCE_CONTENT_VIEWED', id, { sha256: ev.declared_image_sha256 });
       res.setHeader('Content-Type', 'image/jpeg');
@@ -186,10 +230,10 @@ export function evidenceRoutes(ctx: AppContext): Router {
 
   r.get(
     '/:id/manifest.json',
-    requireRole('ADMIN', 'SUPERVISOR', 'REVIEWER'),
+    requirePermission('evidence.export'),
     h(async (req, res) => {
       const id = param(req, 'id');
-      const ev = await loadEvidence(ctx, id);
+      const ev = await loadAuthorised(authUser(req), id);
       await audit(req, 'EVIDENCE_EXPORTED', id, { format: 'manifest-json' });
       res.setHeader('Content-Disposition', `attachment; filename="pramaan-manifest-${id}.json"`);
       res.json({
@@ -204,11 +248,11 @@ export function evidenceRoutes(ctx: AppContext): Router {
 
   r.get(
     '/:id/package',
-    requireRole('ADMIN', 'SUPERVISOR'),
+    requirePermission('evidence.package'),
     h(async (req, res) => {
       const id = param(req, 'id');
       const u = authUser(req);
-      const ev = await loadEvidence(ctx, id);
+      const ev = await loadAuthorised(u, id);
       const { zip } = await buildPackageFor(ctx, ev, `user:${u.id}`);
       const digest = sha256(Buffer.from(zip));
       await audit(req, 'EVIDENCE_EXPORTED', id, {
@@ -225,11 +269,11 @@ export function evidenceRoutes(ctx: AppContext): Router {
 
   r.get(
     '/:id/report.pdf',
-    requireRole('ADMIN', 'SUPERVISOR', 'REVIEWER'),
+    requirePermission('evidence.export'),
     h(async (req, res) => {
       const id = param(req, 'id');
       const u = authUser(req);
-      const ev = await loadEvidence(ctx, id);
+      const ev = await loadAuthorised(u, id);
       const pdf = await renderEvidenceReport(ctx, ev, `${u.role} ${u.id}`);
       await audit(req, 'EVIDENCE_EXPORTED', id, {
         format: 'report-pdf',

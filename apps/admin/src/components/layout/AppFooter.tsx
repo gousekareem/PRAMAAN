@@ -26,8 +26,8 @@ export function AppFooter() {
         </p>
       </div>
       <p className="mx-auto max-w-7xl px-4 pb-4 text-[11px] leading-snug text-ink-600 sm:px-6">
-        Academic capstone prototype. Not commissioned, endorsed or operated by Guntur Railway Police
-        or any government authority.
+        Academic capstone prototype using synthetic demonstration data. Not commissioned, endorsed or operated by Guntur Railway
+        Police, the Andhra Pradesh Railway Police or any government authority.
       </p>
     </footer>
   );

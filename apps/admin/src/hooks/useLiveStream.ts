@@ -8,13 +8,16 @@ export type StreamState = 'connecting' | 'connected' | 'disconnected';
  * Subscribes to /api/v1/dashboard/stream via fetch streaming (keeps the bearer token out of
  * URLs). Events trigger refetches; the stream only says "something changed".
  */
-export function useLiveStream(onEvent: (type: string, data: unknown) => void): StreamState {
+export function useLiveStream(
+  onEvent: (type: string, data: unknown) => void,
+  enabled = true,
+): StreamState {
   const { getToken, status } = useAuth();
   const [state, setState] = useState<StreamState>('connecting');
   const handler = useRef(onEvent);
   handler.current = onEvent;
   useEffect(() => {
-    if (status !== 'authenticated' || typeof ReadableStream === 'undefined') return;
+    if (!enabled || status !== 'authenticated' || typeof ReadableStream === 'undefined') return;
     const ctrl = new AbortController();
     let stopped = false;
     let retry: ReturnType<typeof setTimeout> | undefined;
@@ -64,6 +67,6 @@ export function useLiveStream(onEvent: (type: string, data: unknown) => void): S
       ctrl.abort();
       if (retry) clearTimeout(retry);
     };
-  }, [status, getToken]);
+  }, [status, getToken, enabled]);
   return state;
 }

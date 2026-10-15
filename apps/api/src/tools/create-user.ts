@@ -1,7 +1,13 @@
 /**
- * Creates a real (non-demo) user. Password is taken from PRAMAAN_NEW_PASSWORD (never a CLI argument).
- * Usage: node dist/tools/create-user.js --email a@b --name "Name" --role ADMIN|SUPERVISOR|REVIEWER|OFFICER
- *        [--officer-ref GRP-PC-0001 --rank CONSTABLE --station "Guntur"]   (OFFICER only)
+ * Creates a real (non-demo) login account. Password is taken from PRAMAAN_NEW_PASSWORD (never a CLI argument).
+ * Role codes come from the `roles` table (HG, PC, HC, ASI, SI, CI, DSP, ADMIN, …).
+ *
+ * Usage:
+ *   node dist/tools/create-user.js --email a@b --name "Name" --role ADMIN
+ *   node dist/tools/create-user.js --email a@b --name "Name" --role SI --personnel-ref GRP-SI-0001
+ *   node dist/tools/create-user.js --email a@b --name "Name" --role PC --personnel-ref GRP-PC-0002 \
+ *        --create-personnel --rank PC --constable-category AR --unit-code ST-01
+ *   (Home Guard: --create-personnel --personnel-category HOME_GUARD --unit-code ST-01)
  */
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
@@ -16,28 +22,26 @@ const arg = (n: string) => {
 };
 const input = z
   .object({
-    email: z
-      .string()
-      .email()
-      .transform((s) => s.toLowerCase()),
+    email: z.string().email().transform((s) => s.toLowerCase()),
     name: z.string().min(2).max(80),
-    role: z.enum(['ADMIN', 'SUPERVISOR', 'REVIEWER', 'OFFICER']),
-    officerRef: z
-      .string()
-      .regex(/^[A-Z0-9-]{3,32}$/)
-      .optional(),
-    rank: z
-      .enum(['CONSTABLE', 'HEAD_CONSTABLE', 'ASI', 'SI', 'INSPECTOR', 'DSP', 'OTHER'])
-      .optional(),
-    station: z.string().min(2).max(80).optional(),
+    role: z.string().regex(/^[A-Z_]{2,32}$/),
+    personnelRef: z.string().regex(/^[A-Z0-9-]{3,32}$/).optional(),
+    createPersonnel: z.boolean(),
+    personnelCategory: z.enum(['POLICE', 'HOME_GUARD']).default('POLICE'),
+    rank: z.enum(['PC', 'HC', 'ASI', 'SI', 'CI', 'DSP', 'OTHER']).optional(),
+    constableCategory: z.enum(['AR', 'GENERAL']).optional(),
+    unitCode: z.string().regex(/^[A-Z0-9-]{2,32}$/).optional(),
   })
   .parse({
     email: arg('email'),
     name: arg('name'),
     role: arg('role'),
-    officerRef: arg('officer-ref'),
+    personnelRef: arg('personnel-ref'),
+    createPersonnel: process.argv.includes('--create-personnel'),
+    personnelCategory: arg('personnel-category'),
     rank: arg('rank'),
-    station: arg('station'),
+    constableCategory: arg('constable-category'),
+    unitCode: arg('unit-code'),
   });
 
 const password = process.env.PRAMAAN_NEW_PASSWORD ?? '';
@@ -46,24 +50,41 @@ if (issues.length) {
   console.error(`PRAMAAN_NEW_PASSWORD must contain ${issues.join(', ')}`);
   process.exit(2);
 }
-if (input.role === 'OFFICER' && (!input.officerRef || !input.rank || !input.station)) {
-  console.error('OFFICER requires --officer-ref, --rank and --station');
-  process.exit(2);
-}
-const env = loadDatabaseEnv();
-const pool = createPool(env);
+const pool = createPool(loadDatabaseEnv());
 try {
   const hash = await hashPassword(password);
   const id = randomUUID();
   await withTransaction(pool, async (c) => {
+    const role = (await c.query<{ requires_personnel: boolean }>('SELECT requires_personnel FROM roles WHERE code = $1', [input.role])).rows[0];
+    if (!role) throw new Error(`Unknown role ${input.role}`);
     let officerId: string | null = null;
-    if (input.role === 'OFFICER') {
-      officerId = randomUUID();
-      await c.query(
-        'INSERT INTO officers (id, employee_ref, display_name, rank, station) VALUES ($1,$2,$3,$4,$5)',
-        [officerId, input.officerRef, input.name, input.rank, input.station],
-      );
+    if (input.personnelRef) {
+      if (input.createPersonnel) {
+        if (!input.unitCode) throw new Error('--create-personnel needs --unit-code');
+        if (input.personnelCategory === 'POLICE' && !input.rank) throw new Error('Police personnel need --rank');
+        const unit = (await c.query<{ id: string; name: string }>('SELECT id, name FROM units WHERE code = $1', [input.unitCode])).rows[0];
+        if (!unit) throw new Error(`Unknown unit ${input.unitCode}`);
+        officerId = randomUUID();
+        await c.query(
+          `INSERT INTO officers (id, employee_ref, display_name, rank, station, personnel_category, constable_category, unit_id)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+          [
+            officerId,
+            input.personnelRef,
+            input.name,
+            input.personnelCategory === 'HOME_GUARD' ? null : input.rank,
+            unit.name.slice(0, 80),
+            input.personnelCategory,
+            input.rank === 'PC' ? (input.constableCategory ?? null) : null,
+            unit.id,
+          ],
+        );
+      } else {
+        officerId = (await c.query<{ id: string }>('SELECT id FROM officers WHERE employee_ref = $1 AND is_active', [input.personnelRef])).rows[0]?.id ?? null;
+        if (!officerId) throw new Error(`No active personnel record ${input.personnelRef}`);
+      }
     }
+    if (role.requires_personnel && !officerId) throw new Error(`Role ${input.role} requires --personnel-ref`);
     await c.query(
       'INSERT INTO app_users (id, email, display_name, role, password_hash, officer_id) VALUES ($1,$2,$3,$4,$5,$6)',
       [id, input.email, input.name, input.role, hash, officerId],
@@ -71,10 +92,10 @@ try {
     await appendAudit(c, {
       actorUserId: null,
       actorRole: 'OPERATOR_CLI',
-      action: 'USER_CREATED',
+      action: 'ACCOUNT_CREATED',
       targetType: 'user',
       targetId: id,
-      details: { role: input.role, email: input.email },
+      details: { role: input.role, email: input.email, officerId },
     });
   });
   console.log(`Created ${input.role} ${input.email} (${id})`);

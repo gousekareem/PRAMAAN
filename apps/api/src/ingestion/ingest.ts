@@ -95,7 +95,7 @@ export async function ingestBatch(
       `Schema version ${batch.schemaVersion} is not supported.`,
     );
   }
-  if (user.role !== 'OFFICER' || !user.officerId)
+  if (!user.permissions.has('checkin.perform') || !user.officerId)
     throw new AppError(403, 'FORBIDDEN', 'Only officer device sessions may synchronise.');
 
   const requestSha = sha256Hex(canonicalize(batch));

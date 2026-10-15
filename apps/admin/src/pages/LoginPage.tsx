@@ -37,7 +37,7 @@ export function LoginPage() {
             PRAMAAN
           </p>
           <p className="mt-1 text-center text-xs text-paper-200/80">
-            Cryptographic proof-of-presence review · academic prototype
+            Railway police duty & proof-of-presence · academic prototype
           </p>
           <form
             onSubmit={submit}
@@ -45,8 +45,11 @@ export function LoginPage() {
             aria-labelledby="login-title"
           >
             <h1 id="login-title" className="text-base font-semibold text-ink-950">
-              Supervisor sign-in
+              Sign in
             </h1>
+            <p className="mt-1 text-xs text-ink-700">
+              Personnel and supervisory accounts. What you can see and do depends on the permissions of your role.
+            </p>
             {expired && (
               <p role="status" className="mt-3 rounded bg-amber-50 p-2 text-sm text-signal-warn">
                 Your session expired. Please sign in again.
@@ -85,7 +88,8 @@ export function LoginPage() {
               {busy ? 'Signing in…' : 'Sign in'}
             </button>
             <p className="mt-4 text-xs text-ink-700">
-              Officer accounts sign in on registered duty devices, not here.
+              Check-ins and evidence capture happen in the Android duty app on a registered device. Demonstration accounts work only in local/test
+              environments.
             </p>
           </form>
         </div>

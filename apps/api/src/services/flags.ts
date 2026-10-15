@@ -17,7 +17,13 @@ export type FlagType =
   | 'DEVICE_REGISTRATION'
   | 'DEVICE_REVOCATION'
   | 'DEVICE_INTEGRITY'
-  | 'SCREEN_RECAPTURE_RISK';
+  | 'SCREEN_RECAPTURE_RISK'
+  | 'DUTY_REPORTING_DELAYED'
+  | 'DUTY_OVERDUE'
+  | 'SYNC_FAILURE'
+  | 'ASSIGNMENT_CONFLICT'
+  | 'INACTIVE_PERSONNEL_ASSIGNED'
+  | 'DUTY_EXCEPTION_REPORTED';
 
 export interface FlagInput {
   type: FlagType;
@@ -30,6 +36,7 @@ export interface FlagInput {
   dutySessionId?: string | null;
   eventId?: string | null;
   evidenceId?: string | null;
+  dutyAssignmentId?: string | null;
   inputs?: Record<string, unknown>;
 }
 
@@ -41,8 +48,10 @@ export async function raiseFlag(
 ): Promise<string | null> {
   const id = randomUUID();
   const { rowCount } = await c.query(
-    `INSERT INTO review_flags (id, flag_type, severity, title, description, officer_id, device_id, duty_session_id, event_id, evidence_id, inputs, dedupe_key)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) ON CONFLICT (dedupe_key) DO NOTHING`,
+    `INSERT INTO review_flags (id, flag_type, severity, title, description, officer_id, device_id, duty_session_id, event_id, evidence_id, inputs, dedupe_key, duty_assignment_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,
+       COALESCE($13::uuid, (SELECT assignment_id FROM duty_assignment_personnel WHERE duty_session_id = $8::uuid)))
+     ON CONFLICT (dedupe_key) DO NOTHING`,
     [
       id,
       f.type,
@@ -56,6 +65,7 @@ export async function raiseFlag(
       f.evidenceId ?? null,
       JSON.stringify(f.inputs ?? {}),
       f.dedupeKey,
+      f.dutyAssignmentId ?? null,
     ],
   );
   if (rowCount && bus) {

@@ -8,10 +8,7 @@ const root = path.resolve(__dirname, '../..');
  * source (their package.json "react-native" field points at src/index.ts).
  */
 const config = {
-  watchFolders: [
-    path.join(root, 'packages/event-contracts'),
-    path.join(root, 'packages/validation'),
-  ],
+  watchFolders: [path.join(root, 'packages/event-contracts'), path.join(root, 'packages/validation')],
   resolver: {
     extraNodeModules: {
       '@pramaan/event-contracts': path.join(root, 'packages/event-contracts'),

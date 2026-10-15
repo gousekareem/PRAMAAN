@@ -52,7 +52,9 @@
       "rootIndicators": [],
       "developerOptionsEnabled": null,
       "adbEnabled": null,
-      "emulatorIndicators": ["SIMULATED_DEVICE"],
+      "emulatorIndicators": [
+        "SIMULATED_DEVICE"
+      ],
       "appSigningCertSha256": null,
       "keyHardwareBacked": false
     },

@@ -129,8 +129,27 @@ describe('Devices page', () => {
 });
 
 describe('Overview page', () => {
-  it('renders loading then metrics', async () => {
+  it('renders loading, then figures computed by the server within scope', async () => {
     mockFetch({
+      '/api/v1/dashboard/operations': {
+        generatedAt: '2026-10-15T00:00:00Z',
+        range: { from: '2026-10-08T00:00:00Z', to: '2026-10-22T00:00:00Z' },
+        scope: { level: 'UNIT_TREE' },
+        personnel: [
+          { cls: 'HG', active: 3, inactive: 0 },
+          { cls: 'PC_AR', active: 2, inactive: 1 },
+        ],
+        dutiesByCategory: [
+          { category: 'TRAIN_BEAT', total: 4, completed: 1, cancelled: 1, inProgress: 1, assigned: 1, draft: 0, exceptionReported: 0 },
+          { category: 'VIP_ESCORT', total: 1, completed: 0, cancelled: 0, inProgress: 0, assigned: 1, draft: 0, exceptionReported: 0 },
+        ],
+        presence: { acknowledged: 7, late: 1, missed: 2 },
+        evidence: { verified: 5, awaitingUpload: 4, failed: 1 },
+        synchronisation: { openSyncFailures: 1, rejectedEvents24h: 0, lastBatchReceivedAt: null },
+        openExceptionsByType: [{ flagType: 'CHECKIN_MISSED', n: 2 }],
+        assignmentsWithConflicts: 1,
+        recentAudit: [],
+      },
       '/api/v1/dashboard/summary': {
         activeDutySessions: 2,
         devicesSeen30m: 1,
@@ -146,12 +165,18 @@ describe('Overview page', () => {
         generatedAt: '2026-10-01T00:00:00Z',
       },
       '/api/v1/dashboard/alerts': emptyPage,
+      '/api/v1/units': { items: [] },
     });
     renderWith(<OverviewPage />);
     expect(screen.getAllByRole('status')[0]).toHaveTextContent('Loading');
+    expect(await screen.findByText('Active personnel')).toBeInTheDocument();
+    expect(screen.getByText('Active personnel').nextSibling).toHaveTextContent('5');
+    expect(screen.getByText('Duties in range').nextSibling).toHaveTextContent('5');
+    expect(screen.getByText('Duties completed').nextSibling).toHaveTextContent('25%'); // 1 of 4 (cancelled excluded)
+    expect(screen.getByText('Missed check-ins').nextSibling).toHaveTextContent('2');
+    expect(screen.getByText('Evidence verification failures').nextSibling).toHaveTextContent('1');
     expect(await screen.findByText('1 / 3')).toBeInTheDocument();
-    expect(screen.getByText('Evidence awaiting upload').nextSibling).toHaveTextContent('4');
-    expect(await screen.findByText('No open review flags')).toBeInTheDocument();
+    expect(await screen.findByText('No open exceptions')).toBeInTheDocument();
   });
 });
 

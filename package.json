@@ -10,7 +10,7 @@
     "node": ">=22.13.0"
   },
   "scripts": {
-    "build:packages": "pnpm -r --filter \"./packages/*\" run build",
+    "build:packages": "pnpm --filter @pramaan/event-contracts --filter @pramaan/validation --filter @pramaan/verifier run build",
     "build": "pnpm run build:packages && pnpm --filter @pramaan/api run build && pnpm --filter @pramaan/admin run build",
     "typecheck": "pnpm run build:packages && pnpm -r --filter=!pramaan run typecheck",
     "lint": "eslint .",
@@ -23,7 +23,9 @@
     "dev:admin": "pnpm --filter @pramaan/admin run dev",
     "simulate": "pnpm --filter @pramaan/api run simulate",
     "verify-package": "node packages/verifier/dist/cli.js",
-    "audit:deps": "pnpm audit --prod"
+    "audit:deps": "pnpm audit --prod",
+    "scenarios": "pnpm --filter @pramaan/api run scenarios",
+    "db:reset-demo": "pnpm --filter @pramaan/api run db:seed -- --reset"
   },
   "devDependencies": {
     "@eslint/js": "9.39.5",

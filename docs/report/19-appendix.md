@@ -231,6 +231,107 @@ with uncertainty `50 ms + RTT/2 + 100 ppm × elapsed`. After a reboot the estima
   plus a mandatory custom header (CSRF defence). Mobile: stored inside the SQLCipher database.
 - Every request re-checks that the user is active and the session family not revoked, so logout and
   device revocation take effect immediately.
-- Roles: ADMIN, SUPERVISOR (DSP/SHO-style), REVIEWER (read-only, no image content), OFFICER (mobile only).
+- Roles: ADMIN, SUPERVISOR (DSP/SHO-style), REVIEWER (read-only, no image content), OFFICER (mobile only). **Superseded in 2.0 by ADR-009** (database-backed permissions and scopes; rank roles HG…DSP).
+- 2.0: every request also re-reads the role, permissions, scope and the linked personnel record’s active status; demo accounts are refused in production unless `ALLOW_DEMO_LOGIN=true`.
 
+## ADR-009 — Database-backed permissions and data scopes instead of fixed roles
 
+**Status:** Accepted (PRAMAAN 2.0)
+
+#### Context
+PRAMAAN 1.0 had four hard-coded roles (`ADMIN`, `SUPERVISOR`, `REVIEWER`, `OFFICER`) checked with
+`requireRole(...)`. The 2.0 brief needs separate accounts for HG, PC (AR and General), HC, ASI, SI, CI and DSP.
+It also requires least privilege, no automatic “higher rank can do everything”, scope boundaries, and
+configurability, because the departmental rules are not yet known.
+
+#### Decision
+* Store `roles`, `permissions` and `role_permissions` in the database. Each role has a `scope_level`:
+  SELF, UNIT, UNIT_TREE or ALL.
+* Keep the access token minimal (user id, session family). Re-read role, permissions, scope, and account and
+  personnel status on **every** request.
+* Replace `requireRole` with `requirePermission` / `requireAnyPermission`. Apply scope in SQL with shared
+  helpers that return 404 for out-of-scope objects. Apply restricted-duty rules through a separate SQL filter.
+* Keep AR/General as a personnel attribute. It confers no permissions.
+* Keep the 1.0 roles with equivalent permission sets for backward compatibility.
+
+#### Consequences
+* There is one extra query per request. It is acceptable at prototype scale and could be cached later with
+  short-lived invalidation.
+* Permission changes take effect immediately. A tampered or stale token cannot widen access.
+* Every list query must include a scope predicate. This is enforced by convention and covered by tests
+  (scope boundaries, restricted details, scoped reports).
+
+## ADR-010 — Duty assignments layered over per-person duty sessions
+
+**Status:** Accepted (PRAMAAN 2.0)
+
+#### Context
+The 1.0 `duty_sessions` table represents one officer's authorised window, which device events reference. The
+2.0 duty categories need one operational duty with several people, plus staffing changes, instructions,
+handovers and a status life cycle. All of this must happen without breaking device synchronisation or the
+evidence pipeline.
+
+#### Decision
+* Add `duty_assignments` (the operation) and `duty_assignment_personnel` (the people). When a duty is
+  published, each person gets an ordinary `duty_sessions` row, linked 1:1 from the personnel row.
+* Device events keep referencing `dutySessionId`. Ingestion is unchanged, except that a
+  `DUTY_SESSION_STARTED` also moves the assignment to `IN_PROGRESS`, with an explicit “not proof of
+  attendance” reason.
+* Removing or replacing a person cancels only a session that never started. Drafts never reach devices.
+* All changes are written to an append-only change table plus the audit chain. Assignments, personnel rows
+  and personnel records cannot be deleted.
+
+#### Consequences
+* Existing check-in, evidence, spatial and exception logic applies to every category without duplication.
+* Reports and exceptions join through the session to reach the assignment.
+* A person's schedule lives in two places (the assignment and each session). Planned sessions are updated
+  together with the assignment. Active sessions are left for the device to end.
+
+## E. Scenario demonstration run (simulated devices)
+
+Generated 2026-10-15T12:30:36.883Z by `pnpm scenarios` against the seeded API: **42/42 checks passed**. Devices are simulated (signed events with synthetic locations and images).
+
+| # | Scenario | Check | Observed | Result |
+|---|---|---|---|---|
+| 1 | Setup | API ready | HTTP 200 {"database":"ok","postgis":"3.4.2","migrations":"7","storage":"ok"} | PASS |
+| 2 | Setup | All eight rank accounts sign in | hg, pc, pc.ar, hc, asi, si, ci, dsp signed in | PASS |
+| 3 | Four duty categories | CI lists TRAIN_BEAT | 4 duty/duties | PASS |
+| 4 | Four duty categories | CI lists STATION_WATCH | 3 duty/duties | PASS |
+| 5 | Four duty categories | CI lists VIP_ESCORT | 1 duty/duties | PASS |
+| 6 | Four duty categories | CI lists TRACK_INCIDENT | 1 duty/duties | PASS |
+| 7 | Train beat (AR + AR) with check-ins | SI creates and publishes a beat with two AR constables | HTTP 201 ASSIGNED TB-20261015-001 | PASS |
+| 8 | Train beat (AR + AR) with check-ins | PC (AR) acknowledges published instructions | HTTP 200 | PASS |
+| 9 | Train beat (AR + AR) with check-ins | Device syncs duty start, check-ins and a missed check-in | {"accepted":7,"duplicate":0,"rejected":0,"conflict":0} | PASS |
+| 10 | Train beat (AR + AR) with check-ins | Device-reported start moves the duty to IN_PROGRESS | IN_PROGRESS | PASS |
+| 11 | Train beat (AR + AR) with check-ins | Check-ins link to personnel and duty | 2 rows; Vemuri Anil Kumar:MISSED, Vemuri Anil Kumar:ACKNOWLEDGED | PASS |
+| 12 | Train beat (AR + AR) with check-ins | Missed check-in raised as an exception visible to the ASI | 1 | PASS |
+| 13 | Station watch (HG + General) offline synchronisation | SI publishes a station watch (HG + PC General) | HTTP 201 SW-20261015-001 | PASS |
+| 14 | Station watch (HG + General) offline synchronisation | Events recorded offline for 85 min sync when connectivity returns | {"accepted":6,"duplicate":0,"rejected":0,"conflict":0} | PASS |
+| 15 | Station watch (HG + General) offline synchronisation | Lost response → same batch replayed | replayed=true | PASS |
+| 16 | Station watch (HG + General) offline synchronisation | Same events in a new batch | {"accepted":0,"duplicate":6,"rejected":0,"conflict":0} | PASS |
+| 17 | Station watch (HG + General) offline synchronisation | Handover recorded with outstanding tasks | HTTP 201; warnings: Incoming person is not listed on this duty. | PASS |
+| 18 | Overlapping assignment | Assigning an already-engaged constable | HTTP 409 ASSIGNMENT_CONFLICT: Overlaps duty TB-20261015-001 (IN_PROGRESS). | PASS |
+| 19 | Overlapping assignment | HC (no duty.assign) attempts an override | HTTP 403 | PASS |
+| 20 | Overlapping assignment | SI overrides with a reason | HTTP 201 | PASS |
+| 21 | Overlapping assignment | Inactive personnel cannot be newly assigned | HTTP 400 INACTIVE_PERSONNEL | PASS |
+| 22 | VIP escort restriction | DSP opens the restricted escort | title="VIP Escort (restricted details)" escortLabel=null | PASS |
+| 23 | VIP escort restriction | SI (duty.view_restricted) opens it | escortLabel=DEMO-VIP-A (synthetic label) | PASS |
+| 24 | Track incident evidence integrity | In-app evidence upload (non-graphic synthetic image) | HTTP 200 VERIFIED | PASS |
+| 25 | Track incident evidence integrity | Modified image bytes are uploaded | HTTP 422 EVIDENCE_HASH_MISMATCH | PASS |
+| 26 | Track incident evidence integrity | HC (no restricted access) opens incident evidence | HTTP 404 | PASS |
+| 27 | Track incident evidence integrity | DSP (no evidence.view_image) requests image bytes | HTTP 403 | PASS |
+| 28 | Track incident evidence integrity | CI exports the evidence package; independent verifier | PASS (17 checks) | PASS |
+| 29 | Unauthorised access | HG → accounts | HTTP 403 | PASS |
+| 30 | Unauthorised access | HG → audit | HTTP 403 | PASS |
+| 31 | Unauthorised access | DSP → system status | HTTP 403 | PASS |
+| 32 | Unauthorised access | HG → another person | HTTP 404 | PASS |
+| 33 | Supervisory review of exceptions | ASI runs the duty-exception evaluator | {"evaluatedAt":"2026-10-15T12:30:36.536Z","reportingDelayed":11,"overdue":2,"syncFailures":0} | PASS |
+| 34 | Supervisory review of exceptions | Acknowledge → investigation note → resolve | 201/200 RESOLVED | PASS |
+| 35 | Supervisory review of exceptions | Audited correction requested by PC (AR), approved by SI | 201/200 (personnel row 741c0b5d) | PASS |
+| 36 | Supervisory review of exceptions | Invalid transition (cancel a completed duty) | HTTP 409 INVALID_TRANSITION | PASS |
+| 37 | Reports | CI exports roster PDF | HTTP 200 sha256 55a16fd728e5ef6b… | PASS |
+| 38 | Reports | CI exports assignments PDF | HTTP 200 sha256 bac52b0ead4df89f… | PASS |
+| 39 | Reports | CI exports completion PDF | HTTP 200 sha256 fdd0137ac75dc77b… | PASS |
+| 40 | Reports | CI exports exceptions PDF | HTTP 200 sha256 26cf8a9930ad22bf… | PASS |
+| 41 | Reports | CI exports evidence-verification PDF | HTTP 200 sha256 6dc2c523e94e6b47… | PASS |
+| 42 | Reports | Audit chain after all scenarios | ok=true checked=114 | PASS |

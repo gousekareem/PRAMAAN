@@ -5,7 +5,7 @@
 $ErrorActionPreference = 'Continue'
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
-if (-not $env:TEST_DATABASE_ADMIN_URL) { $env:TEST_DATABASE_ADMIN_URL = 'postgres://pramaan:pramaan_dev_only@localhost:5432/postgres' }
+if (-not $env:TEST_DATABASE_ADMIN_URL) { $env:TEST_DATABASE_ADMIN_URL = 'postgres://pramaan:pramaan_dev_only@localhost:5433/postgres' }
 $Out = Join-Path $Root 'out\test-results'
 New-Item -ItemType Directory -Force $Out | Out-Null
 $failed = @()

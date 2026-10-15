@@ -22,7 +22,7 @@ interface AuditItem {
 }
 
 export function AuditPage() {
-  const { hasRole } = useAuth();
+  const { can } = useAuth();
   const [page, setPage] = useState(1);
   const [action, setAction] = useState('');
   const [verify, setVerify] = useState<{
@@ -68,7 +68,7 @@ export function AuditPage() {
           )}
         </Card>
         <Card title="Verify audit chain">
-          {hasRole('ADMIN') ? (
+          {can('audit.verify') ? (
             <>
               <button
                 type="button"

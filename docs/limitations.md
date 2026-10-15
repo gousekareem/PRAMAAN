@@ -43,3 +43,29 @@
     performed (no account credentials). See `docs/device-test-checklist.md`.
 16. **Mobile UI tests.** React Native screens are type-checked and bundled with Metro but have no
     component tests; business logic beneath them is unit-tested.
+17. **Operational rules are prototype defaults.** The role permission sets, data scopes, duty-category
+    eligibility, check-in intervals, reporting windows and grace periods were chosen for the demonstration
+    from the information supplied. They are configurable and **must be validated by the Andhra Pradesh
+    Railway Police** before any use. AR as a constable classification must also be confirmed.
+18. **No official integration.** There is no connection to departmental HR, leave, rostering, CCTNS or railway
+    train-running systems. Personnel, units, trains, VIP labels and incidents are entered manually (synthetic
+    in the demo). Unavailability categories are generic; no leave rules are modelled.
+19. **Notifications are in-app only.** There is no push, SMS or e-mail channel. `DELIVERED` means the
+    recipient's signed-in app retrieved the notification, not that the person read it on a phone.
+20. **Exception evaluation is periodic and server-side.** Delayed reporting and sync failures are inferred
+    from the absence of synchronised events. An offline device that later synchronises can produce
+    exceptions that turn out to be explained. Device-reported start times are untrusted.
+21. **Restricted-duty access is coarse.** `duty.view_restricted` is all-or-nothing per role. A per-duty
+    access list, field-level redaction policies and approval for each disclosure are future work.
+22. **Audit scope for non-global users** is computed from the actor's and target's scope (personnel,
+    duties, evidence). Audit records about other kinds of target (for example policy changes) are visible
+    only to global roles.
+23. **Localisation.** All new screens use the central English dictionary, and a Telugu dictionary file
+    exists but is intentionally empty (it needs reviewed translations). Several PRAMAAN 1.0 dashboard pages
+    and the Android app still contain inline English strings.
+24. **Android UI for duty assignments** (category, instructions, accept and acknowledge buttons, per-category
+    check-in policy) is type-checked and its scheduling logic unit-tested. Like the rest of the Android app,
+    it was not run on a device in this delivery.
+25. **Single-instance evaluator.** The exception evaluator runs inside the API process. With several
+    instances it would run on each one (deduplicated by flag keys), which is harmless but wasteful; a
+    scheduled job would be preferable.

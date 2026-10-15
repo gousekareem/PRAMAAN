@@ -35,7 +35,7 @@ export function VerificationSummary({ d }: { d: EvidenceDetail }) {
 
 export function EvidenceDetailPage() {
   const { id = '' } = useParams();
-  const { hasRole } = useAuth();
+  const { can } = useAuth();
   const {
     data: d,
     error,
@@ -59,23 +59,27 @@ export function EvidenceDetailPage() {
         actions={
           <>
             <DemoBadge show={d.officer.isDemo} />
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={() =>
-                doExport(`/api/v1/evidence/${d.evidenceId}/manifest.json`, 'manifest.json')
-              }
-            >
-              Manifest JSON
-            </button>
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={() => doExport(`/api/v1/evidence/${d.evidenceId}/report.pdf`, 'report.pdf')}
-            >
-              Report PDF
-            </button>
-            {hasRole('ADMIN', 'SUPERVISOR') && d.status === 'VERIFIED' && (
+            {can('evidence.export') && (
+              <>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() =>
+                    doExport(`/api/v1/evidence/${d.evidenceId}/manifest.json`, 'manifest.json')
+                  }
+                >
+                  Manifest JSON
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => doExport(`/api/v1/evidence/${d.evidenceId}/report.pdf`, 'report.pdf')}
+                >
+                  Report PDF
+                </button>
+              </>
+            )}
+            {can('evidence.package') && d.status === 'VERIFIED' && (
               <button
                 type="button"
                 className="btn-primary"

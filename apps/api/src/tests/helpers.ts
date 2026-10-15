@@ -18,8 +18,7 @@ export function testDbUrl(): string {
   const url = process.env.TEST_DATABASE_URL;
   if (!url) {
     const u = new URL(
-      process.env.TEST_DATABASE_ADMIN_URL ??
-        'postgres://pramaan:pramaan_dev_only@localhost:5432/postgres',
+      process.env.TEST_DATABASE_ADMIN_URL ?? 'postgres://pramaan:pramaan_dev_only@localhost:5433/postgres',
     );
     u.pathname = `/${process.env.TEST_DATABASE_NAME ?? 'pramaan_test'}`;
     return u.toString();
@@ -101,3 +100,20 @@ export async function activeDevice(
 export const PF1 = { lat: 16.3004, lon: 80.4505 };
 /** Point inside DEMO-GNT-YARD (about 0.5 km from PF1). */
 export const YARD = { lat: 16.302, lon: 80.4555 };
+
+export { DEMO_ACCOUNTS, DEMO_ASSIGNMENTS, DEMO_PERSON, DEMO_UNITS } from '../database/demo-operations.js';
+import { DEMO_ACCOUNTS as ACCOUNTS } from '../database/demo-operations.js';
+
+export type RankKey = (typeof ACCOUNTS)[number]['key'];
+
+/** Logs in one of the rank demo accounts (web unless stated). */
+export async function rankLogin(
+  app: Express,
+  key: RankKey,
+  client: 'web' | 'mobile' = 'web',
+): Promise<{ token: string; user: { id: string; permissions: string[]; officerId: string | null } }> {
+  const a = ACCOUNTS.find((x) => x.key === key)!;
+  const r = await request(app).post('/api/v1/auth/login').send({ email: a.email, password: a.password, client });
+  if (r.status !== 200) throw new Error(`rank login ${key} failed ${r.status} ${JSON.stringify(r.body)}`);
+  return { token: r.body.accessToken as string, user: r.body.user };
+}

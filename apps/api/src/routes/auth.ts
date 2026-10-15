@@ -10,6 +10,7 @@ import {
   login,
   refresh,
   revokeFamily,
+  changeOwnPassword,
   type SessionTokens,
 } from '../services/auth.js';
 import { uuidParam } from './common.js';
@@ -39,13 +40,15 @@ export function authRoutes(ctx: AppContext): Router {
         .toLowerCase()
         .slice(0, 120)}`,
     handler: (req, res) =>
-      res.status(429).json({
-        error: {
-          code: 'RATE_LIMITED',
-          message: 'Too many login attempts. Try again later.',
-          requestId: reqId(req),
-        },
-      }),
+      res
+        .status(429)
+        .json({
+          error: {
+            code: 'RATE_LIMITED',
+            message: 'Too many login attempts. Try again later.',
+            requestId: reqId(req),
+          },
+        }),
   });
 
   const cookieOpts = {
@@ -144,11 +147,60 @@ export function authRoutes(ctx: AppContext): Router {
       const u = authUser(req);
       const row = (
         await ctx.pool.query(
-          'SELECT id, email, display_name AS "displayName", role, officer_id AS "officerId", is_demo AS "isDemo" FROM app_users WHERE id = $1',
+          `SELECT u.id, u.email, u.display_name AS "displayName", u.role, r.label AS "roleLabel", u.officer_id AS "officerId",
+              u.is_demo AS "isDemo", r.scope_level AS "scopeLevel", u.last_login_at AS "lastLoginAt",
+              CASE WHEN o.id IS NULL THEN NULL ELSE json_build_object('personnelRef', o.employee_ref, 'personnelCategory', o.personnel_category,
+                'rank', o.rank, 'constableCategory', o.constable_category, 'unitId', o.unit_id, 'unitName', un.name) END AS personnel
+             FROM app_users u JOIN roles r ON r.code = u.role LEFT JOIN officers o ON o.id = u.officer_id LEFT JOIN units un ON un.id = o.unit_id
+            WHERE u.id = $1`,
           [u.id],
         )
       ).rows[0];
-      res.json({ user: row });
+      res.json({ user: { ...row, permissions: [...u.permissions].sort() } });
+    }),
+  );
+
+  /** Active sessions (refresh-token families) of the signed-in user. */
+  r.get(
+    '/sessions',
+    requireAuth(ctx),
+    h(async (req, res) => {
+      const u = authUser(req);
+      const { rows } = await ctx.pool.query(
+        `SELECT family_id AS "familyId", min(issued_at) AS "startedAt", max(issued_at) AS "lastRefreshedAt",
+            max(expires_at) AS "expiresAt", bool_or(device_id IS NOT NULL) AS "isDevice"
+           FROM refresh_tokens WHERE user_id = $1 GROUP BY family_id
+          HAVING bool_and(revoked_at IS NULL) AND max(expires_at) > now() ORDER BY max(issued_at) DESC`,
+        [u.id],
+      );
+      res.json({ items: rows.map((r0) => ({ ...r0, current: r0.familyId === u.family })) });
+    }),
+  );
+
+  r.post(
+    '/sessions/:familyId/revoke',
+    requireAuth(ctx),
+    h(async (req, res) => {
+      const u = authUser(req);
+      const fam = uuidParam.parse(req.params.familyId);
+      const own = await ctx.pool.query('SELECT 1 FROM refresh_tokens WHERE family_id = $1 AND user_id = $2 LIMIT 1', [fam, u.id]);
+      if (!own.rowCount) throw new AppError(404, 'NOT_FOUND', 'Session not found.');
+      await revokeFamily(ctx, fam, u.id, u.role, reqId(req));
+      res.status(204).end();
+    }),
+  );
+
+  r.post(
+    '/change-password',
+    requireAuth(ctx),
+    h(async (req, res) => {
+      const u = authUser(req);
+      const b = z
+        .object({ currentPassword: z.string().min(1).max(256), newPassword: z.string().min(12).max(256) })
+        .strict()
+        .parse(req.body);
+      await changeOwnPassword(ctx, u, b.currentPassword, b.newPassword, reqId(req));
+      res.status(204).end();
     }),
   );
   return r;

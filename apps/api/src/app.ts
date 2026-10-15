@@ -21,6 +21,12 @@ import { evidenceRoutes } from './routes/evidence.js';
 import { alertRoutes, dashboardRoutes } from './routes/dashboard.js';
 import { auditRoutes } from './routes/audit.js';
 import { userRoutes } from './routes/users.js';
+import { dutyAssignmentRoutes } from './routes/duty-assignments.js';
+import { personnelRoutes } from './routes/personnel.js';
+import { accountRoutes, policyRoutes, systemRoutes, unitRoutes } from './routes/administration.js';
+import { checkinRoutes, correctionRoutes, rosterRoutes } from './routes/presence.js';
+import { exceptionRoutes, meRoutes, notificationRoutes, operationsRoutes } from './routes/inbox.js';
+import { reportRoutes } from './routes/reports.js';
 
 export function createApp(ctx: AppContext): express.Express {
   const app = express();
@@ -67,9 +73,11 @@ export function createApp(ctx: AppContext): express.Express {
       legacyHeaders: false,
       skip: (req) => req.path === '/health',
       handler: (req, res) =>
-        res.status(429).json({
-          error: { code: 'RATE_LIMITED', message: 'Too many requests.', requestId: reqId(req) },
-        }),
+        res
+          .status(429)
+          .json({
+            error: { code: 'RATE_LIMITED', message: 'Too many requests.', requestId: reqId(req) },
+          }),
     }),
   );
   app.use(
@@ -96,6 +104,21 @@ export function createApp(ctx: AppContext): express.Express {
   app.use('/api/v1/alerts', auth, alertRoutes(ctx));
   app.use('/api/v1/audit-events', auth, auditRoutes(ctx));
   app.use('/api/v1/users', auth, userRoutes(ctx));
+  // Railway-police operational modules (PRAMAAN 2.0)
+  app.use('/api/v1/duty-assignments', auth, dutyAssignmentRoutes(ctx));
+  app.use('/api/v1/personnel', auth, personnelRoutes(ctx));
+  app.use('/api/v1/units', auth, unitRoutes(ctx));
+  app.use('/api/v1/accounts', auth, accountRoutes(ctx));
+  app.use('/api/v1/policy', auth, policyRoutes(ctx));
+  app.use('/api/v1/system', auth, systemRoutes(ctx));
+  app.use('/api/v1/roster', auth, rosterRoutes(ctx));
+  app.use('/api/v1/checkins', auth, checkinRoutes(ctx));
+  app.use('/api/v1/corrections', auth, correctionRoutes(ctx));
+  app.use('/api/v1/notifications', auth, notificationRoutes(ctx));
+  app.use('/api/v1/exceptions', auth, exceptionRoutes(ctx));
+  app.use('/api/v1/dashboard', auth, operationsRoutes(ctx));
+  app.use('/api/v1/me', auth, meRoutes(ctx));
+  app.use('/api/v1/reports', auth, reportRoutes(ctx));
   app.use(notFound);
   app.use(errorHandler);
   return app;

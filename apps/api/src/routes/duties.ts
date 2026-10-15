@@ -3,12 +3,12 @@ import { Router } from 'express';
 import { z } from 'zod';
 import type { AppContext } from '../context.js';
 import { withTransaction } from '../database/pool.js';
-import { authUser, h, requireRole } from '../middleware/auth.js';
+import { authUser, h, requirePermission, type AuthUser } from '../middleware/auth.js';
+import { assertOfficerInScope, officerScopeSql } from '../security/access.js';
 import { AppError } from '../middleware/errors.js';
 import { reqId } from '../middleware/request-id.js';
 import { appendAudit } from '../services/audit.js';
 import {
-  assertOfficerScope,
   isoQuery,
   pageQuery,
   pageResult,
@@ -32,12 +32,45 @@ const cols = `s.id, s.officer_id AS "officerId", o.display_name AS "officerName"
   s.assignment_notes AS "notes", s.is_demo AS "isDemo", s.created_at AS "createdAt",
   COALESCE((SELECT json_agg(json_build_object('id', z.id, 'code', z.code, 'name', z.name)) FROM duty_zone_assignments a JOIN geo_zones z ON z.id = a.zone_id WHERE a.duty_session_id = s.id), '[]') AS zones`;
 
+/**
+ * Duty-assignment context of a per-person session (null for PRAMAAN 1.0 sessions). Restricted
+ * details are returned only to the assigned person or holders of duty.view_restricted.
+ * The check-in policy is the category's configured policy (prototype defaults).
+ */
+function assignmentCol(u: AuthUser, args: unknown[]): string {
+  args.push(u.permissions.has('duty.view_restricted'));
+  const canR = `$${args.length}::boolean`;
+  args.push(u.officerId);
+  const self = `$${args.length}::uuid`;
+  const show = `(NOT dc.is_restricted OR ${canR} OR s.officer_id = ${self})`;
+  return `(SELECT json_build_object('id', da.id, 'referenceCode', da.reference_code, 'category', da.category, 'categoryLabel', dc.label,
+      'status', da.status, 'isRestricted', dc.is_restricted, 'personnelStatus', dp.status, 'roleInDuty', dp.role_in_duty,
+      'acceptRequired', da.accept_required, 'acceptedAt', dp.accepted_at,
+      'title', CASE WHEN ${show} THEN da.title ELSE dc.label || ' (restricted)' END,
+      'reportingLocation', CASE WHEN ${show} THEN da.reporting_location END,
+      'trainRef', CASE WHEN ${show} THEN da.train_ref END,
+      'escortLabel', CASE WHEN ${show} THEN da.escort_label END,
+      'incidentRef', CASE WHEN ${show} THEN da.incident_ref END,
+      'instructions', CASE WHEN ${show} THEN (SELECT json_build_object('id', i.id, 'version', i.version, 'body', i.body, 'publishedAt', i.published_at,
+            'acknowledged', EXISTS (SELECT 1 FROM duty_instruction_acks k WHERE k.instruction_id = i.id AND k.officer_id = s.officer_id))
+          FROM duty_instructions i WHERE i.assignment_id = da.id ORDER BY i.version DESC LIMIT 1) END,
+      'checkinPolicy', json_build_object('policyVersion', dc.policy_version, 'minIntervalMin', dc.checkin_min_interval_min,
+          'maxIntervalMin', dc.checkin_max_interval_min, 'responseWindowSec', dc.response_window_sec,
+          'reportingWindowMin', dc.reporting_window_min, 'graceMin', dc.grace_min))
+    FROM duty_assignment_personnel dp JOIN duty_assignments da ON da.id = dp.assignment_id JOIN duty_categories dc ON dc.code = da.category
+    WHERE dp.duty_session_id = s.id) AS assignment`;
+}
+
+/** Sessions of draft or cancelled assignments are hidden from devices (published duties only). */
+const PUBLISHED_ONLY = `NOT EXISTS (SELECT 1 FROM duty_assignment_personnel hp JOIN duty_assignments ha ON ha.id = hp.assignment_id
+  WHERE hp.duty_session_id = s.id AND (ha.status IN ('DRAFT','CANCELLED') OR hp.status IN ('REMOVED','REPLACED')))`;
+
 export function dutyRoutes(ctx: AppContext): Router {
   const r = Router();
 
   r.get(
     '/',
-    requireRole('ADMIN', 'SUPERVISOR', 'REVIEWER', 'OFFICER'),
+    requirePermission('duty.view'),
     h(async (req, res) => {
       const u = authUser(req);
       const q = pageQuery
@@ -47,9 +80,10 @@ export function dutyRoutes(ctx: AppContext): Router {
         })
         .parse(req.query);
       const { limit, offset } = paging(q);
-      const where: string[] = [];
       const args: unknown[] = [];
-      const officerId = u.role === 'OFFICER' ? u.officerId : q.officerId;
+      const where: string[] = [officerScopeSql(u, 's.officer_id', args)];
+      if (u.scope.level === 'SELF') where.push(PUBLISHED_ONLY);
+      const officerId = q.officerId;
       if (officerId) {
         args.push(officerId);
         where.push(`s.officer_id = $${args.length}`);
@@ -66,7 +100,7 @@ export function dutyRoutes(ctx: AppContext): Router {
         )
       ).rows[0]!.n;
       const { rows } = await ctx.pool.query(
-        `SELECT ${cols} FROM duty_sessions s JOIN officers o ON o.id = s.officer_id ${w} ORDER BY s.planned_start DESC LIMIT ${limit} OFFSET ${offset}`,
+        `SELECT ${cols}, ${assignmentCol(u, args)} FROM duty_sessions s JOIN officers o ON o.id = s.officer_id ${w} ORDER BY s.planned_start DESC LIMIT ${limit} OFFSET ${offset}`,
         args,
       );
       res.json(pageResult(rows, total, q));
@@ -75,24 +109,26 @@ export function dutyRoutes(ctx: AppContext): Router {
 
   r.get(
     '/:id',
-    requireRole('ADMIN', 'SUPERVISOR', 'REVIEWER', 'OFFICER'),
+    requirePermission('duty.view'),
     h(async (req, res) => {
       const id = param(req, 'id');
+      const u = authUser(req);
+      const args: unknown[] = [id];
       const row = (
         await ctx.pool.query<{ officerId: string }>(
-          `SELECT ${cols} FROM duty_sessions s JOIN officers o ON o.id = s.officer_id WHERE s.id = $1`,
-          [id],
+          `SELECT ${cols}, ${assignmentCol(u, args)} FROM duty_sessions s JOIN officers o ON o.id = s.officer_id WHERE s.id = $1`,
+          args,
         )
       ).rows[0];
       if (!row) throw new AppError(404, 'NOT_FOUND', 'Duty session not found.');
-      assertOfficerScope(authUser(req), row.officerId);
+      await assertOfficerInScope(ctx.pool, u, row.officerId);
       res.json(row);
     }),
   );
 
   r.post(
     '/',
-    requireRole('ADMIN', 'SUPERVISOR'),
+    requirePermission('duty.create', 'duty.assign'),
     h(async (req, res) => {
       const u = authUser(req);
       const b = createSchema.parse(req.body);
@@ -111,6 +147,7 @@ export function dutyRoutes(ctx: AppContext): Router {
         ).rows[0];
         if (!o?.is_active)
           throw new AppError(400, 'VALIDATION_FAILED', 'Officer not found or inactive.');
+        await assertOfficerInScope(c, u, b.officerId);
         const zones = await c.query(
           'SELECT id FROM geo_zones WHERE id = ANY($1::uuid[]) AND is_active',
           [b.zoneIds],
@@ -170,7 +207,7 @@ export function dutyRoutes(ctx: AppContext): Router {
 
   r.post(
     '/:id/cancel',
-    requireRole('ADMIN', 'SUPERVISOR'),
+    requirePermission('duty.close'),
     h(async (req, res) => {
       const u = authUser(req);
       const id = param(req, 'id');
@@ -180,12 +217,13 @@ export function dutyRoutes(ctx: AppContext): Router {
         .parse(req.body);
       await withTransaction(ctx.pool, async (c) => {
         const d = (
-          await c.query<{ status: string }>(
-            'SELECT status FROM duty_sessions WHERE id = $1 FOR UPDATE',
+          await c.query<{ status: string; officer_id: string }>(
+            'SELECT status, officer_id FROM duty_sessions WHERE id = $1 FOR UPDATE',
             [id],
           )
         ).rows[0];
         if (!d) throw new AppError(404, 'NOT_FOUND', 'Duty session not found.');
+        await assertOfficerInScope(c, u, d.officer_id);
         if (d.status !== 'PLANNED')
           throw new AppError(
             409,

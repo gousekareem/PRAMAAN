@@ -75,3 +75,23 @@ SQLCipher is opened with a random 256-bit key (`x'…'` raw key) that is stored 
 form; the wrapping key lives in Android Keystore. `PRAGMA cipher_version` must return a version or the
 app refuses to start — there is **no plaintext fallback**. Backups and device-transfer extraction are
 disabled for all app data.
+
+## Duty assignments on the device (PRAMAAN 2.0)
+* `GET /api/v1/duties` returns each published per-person session with its `assignment` context: category,
+  reference, restricted-aware title and details, reporting location, the latest instruction version (and
+  whether this person acknowledged it), acceptance state, and the category's **check-in policy**. Drafts and
+  sessions of removed or replaced personnel are not delivered.
+* The context is cached in the local `duty_sessions.assignment_json` column (local migration 2), so it remains
+  available offline.
+* `policyForDutyRow` / `policyFromServer` (`checkins/checkinEngine.ts`) convert the category policy into the
+  engine policy. The random interval and response window come from the duty category (for example VIP escort
+  45–90 min / 120 s). Invalid values fall back to the default. The 5-second cognitive challenge stays fixed.
+  Unit tests cover the mapping and the scheduling window.
+* The Home screen shows category, reference, reporting location, train/escort/incident references,
+  instructions with an **Acknowledge** button, an **Accept assignment** button when required, and **Start
+  duty**. Accept and acknowledge are online actions. Errors such as being offline or not authorised are shown,
+  never swallowed.
+* Every field rank whose role holds `mobile.login` (HG, PC, HC, ASI, SI, CI by default) can sign in on a
+  registered duty device. DSP and the administrator cannot.
+* This UI is type-checked and included in the Metro bundle but, like the rest of the Android app, it **was not
+  run on a device** in this delivery.

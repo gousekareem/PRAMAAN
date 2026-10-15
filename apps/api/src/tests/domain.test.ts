@@ -308,10 +308,13 @@ describe('alerts workflow and audit chain', () => {
     ).toBe(400);
     expect(
       (
-        await request(app).patch(`/api/v1/alerts/${flag.id}`).set(bearer(sup)).send({
-          action: 'RESOLVE',
-          note: 'GPS drift near yard boundary; CCTV confirms platform presence (demo)',
-        })
+        await request(app)
+          .patch(`/api/v1/alerts/${flag.id}`)
+          .set(bearer(sup))
+          .send({
+            action: 'RESOLVE',
+            note: 'GPS drift near yard boundary; CCTV confirms platform presence (demo)',
+          })
       ).body.status,
     ).toBe('RESOLVED');
     expect(

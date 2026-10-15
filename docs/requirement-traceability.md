@@ -43,7 +43,7 @@ Statuses: **Implemented and Verified** (automated test or recorded run in this d
 | 12.4 | Root/debug/signature checks; Play Integrity adapter disabled | `DevicePosture.kt`, `PostureRules.kt` | `DevicePostureTest.kt` (JVM) | Partial |
 | 12.5 | HTTPS, limits, rate limits, CORS, headers, redaction | `app.ts`, `logger.ts`, `config/env.ts` | `auth.test.ts` | Implemented and Verified |
 | 13 | Privacy and governance controls | `docs/privacy-governance.md`, manifest, retention table | review | Partial (automated purge not implemented by design) |
-| 14 | Threat matrix (38 threats) | `docs/threat-matrix.md` | — | Implemented and Verified (document) |
+| 14 | Threat matrix (38 threats; 46 with the 2.0 additions) | `docs/threat-matrix.md` | — | Implemented and Verified (document) |
 | 15 | Migrations, seeds (fictional), lon/lat docs, original vs derived | `database/` | API tests | Implemented and Verified |
 | 17–18 | Windows guide, Render guide | `docs/PRAMAAN_WINDOWS_AND_RENDER_DEPLOYMENT_GUIDE.md` | Windows/Render steps not executed | Implemented but Not Verified |
 | 18 | Render deployment | `deploy/render.yaml` | no credentials | Implemented but Not Verified (not deployed) |
@@ -60,3 +60,46 @@ Statuses: **Implemented and Verified** (automated test or recorded run in this d
 | Final | Read-only reviewer mode | REVIEWER role | `auth.test.ts`, `pages.test.tsx` | Implemented and Verified |
 | Final | Device lifecycle (register, approve, revoke) | `routes/devices.ts`, `DevicesPage.tsx` | `sync.test.ts` lifecycle | Implemented and Verified |
 | Final | Artifact SHA-256 checksums | `MANIFEST.sha256` (every file in the ZIP); deliverable checksums in the hand-over summary | packaging step | Implemented and Verified |
+
+## PRAMAAN 2.0 — railway-police operational workflow upgrade
+
+| Req. | Requirement | Source files | Test / evidence | Status |
+|---|---|---|---|---|
+| U2 | Inspect existing project, recoverable baseline, baseline run | uploaded ZIP; `docs/results/baseline-before-upgrade.md` | baseline 174/174 recorded before changes | Implemented and Verified |
+| U3 | Hierarchy HG, PC, HC, ASI, SI, CI, DSP; HG separate category; AR/General as PC subtype | `0006_rbac_personnel.sql` (constraints), `routes/personnel.ts` | rbac.test (AR = PC permissions; HG no rank), migration-upgrade.test | Implemented and Verified |
+| U3.1 | Normalised role/permission model, backend-enforced; per-account ID, name, email, rank, subtype, unit, status, duties, permissions, audit | `roles`, `permissions`, `role_permissions`; `middleware/auth.ts`; `security/access.ts` | rbac.test (forged claim, self-change, role change ends sessions, scope) | Implemented and Verified |
+| U4-A | Train beat: train ref, date/time, location, instructions, flexible staffing, check-ins, completion, history | `services/duties.ts`, `routes/duty-assignments.ts`, dashboard duty pages | duties.test, presence.test, scenarios 07–12 | Implemented and Verified |
+| U4-B | Station watch: station, shifts, supervisor, handover, multiple personnel, duplicate/conflict flagging, station view | same + roster | duties.test (handover, overlap), scenarios 13–17 | Implemented and Verified |
+| U4-C | VIP escort: restricted, minimum data, synthetic labels, no fixed combination | category `is_restricted`, redaction SQL | rbac.test restricted, scenarios 22–23 | Implemented and Verified |
+| U4-D | Track incident: incident ref, evidence, restricted, fictional data, non-graphic placeholders | same; synthetic JPEG generator | presence.test restricted evidence, scenarios 24–28 | Implemented and Verified |
+| U5 | Configurable staffing rules, multiple/single personnel, overlap & inactive flags, warnings not rejections, audited changes | `duty_categories`, `duty_category_eligibility`, `findConflicts`, `assignmentWarnings` | duties.test (BLOCK/WARN, overlap, leave, inactive, warnings) | Implemented and Verified |
+| U6 | Separate demo accounts `position@parmaan.demo` / `position-parmaan.demo` (8 ranks) | `database/demo-operations.ts` | rbac.test (all log in, exact convention) | Implemented and Verified |
+| U6.1 | Hashes only, backend roles, logout/session, demo reset, production guard | `services/auth.ts`, `config/env.ts`, `seed-cli.ts` | rbac.test (Argon2id, logout, sessions, production guard) | Implemented and Verified |
+| U6.2 | Role-based dashboards (same design, permission-based navigation) | `AppLayout.tsx` (NAV_GROUPS), `AppRoutes.tsx` | auth.test.tsx (HG vs ADMIN nav, guards); screenshots 02, 16, 18, 24 | Implemented and Verified |
+| U7 | Synthetic Telugu-region names, male and female, no real records, DEMO labels | `demo-operations.ts` | seed review; DEMO badges in screenshots | Implemented and Verified |
+| U8 | Personnel directory: search/filter, details, create/edit/activate/deactivate, unique IDs, no self-change, no destructive delete, audit | `routes/personnel.ts`, `PersonnelPage`, `PersonnelDetailPage` | rbac.test (deactivate, delete blocked, self-change) | Implemented and Verified (create/edit UI exercised manually and via API; dedicated UI tests limited) |
+| U9 | Unified duty workflow, statuses, valid transitions, audited | `TRANSITIONS`, `transition()` | duties.test invalid transitions, history | Implemented and Verified |
+| U10 | Presence integration: check-ins linked to person + duty, device vs server time, location provenance, SHA-256, offline queue, no duplicates, states, supervisor review, permissioned evidence | per-person `duty_sessions`; `routes/presence.ts`; evidence routes | presence.test; scenarios | Implemented and Verified (server side; Android UI not run on device) |
+| U11 | Supervisory dashboard & reports from DB values, role-based summaries, filters | `/dashboard/operations`, `OverviewPage`, `reports.ts` | duties.test (API counts = DB counts; scoped), pages.test | Implemented and Verified |
+| U12 | Migrations, upgrade from existing schema, constraints, transactions, no destructive history | 0006–0007 | migration-upgrade.test + real upgrade of local 1.0 DB | Implemented and Verified |
+| U13 | Navigation (overview, personnel, assignments, four categories, check-ins, evidence, reports, audit, account/session); footer retained | `AppLayout.tsx`, `AppFooter.tsx` | footer.test (16 routes), screenshots | Implemented and Verified |
+| U14 | Automated tests (auth, authorisation, duty mgmt, presence/evidence, data/regression) | api/admin/mobile tests | `docs/results/test-results.md` | Implemented and Verified |
+| U15 | Deployment, credentials, reset, Windows, Render, env, troubleshooting, per-rank demo, 5-min script | deployment guide, `demo-script.md`, `render.yaml`, `.env.example` | Windows/Render steps not executed here | Implemented but Not Verified (deployment) |
+| M1 | Duty roster day/week/month, availability, conflicts, authorised changes | `RosterPage`, `/roster` | operations.test roster; duties.test roster conflict | Implemented and Verified |
+| M2 | Exception management incl. delayed reporting, overdue, sync failure, evidence failure; ack/notes/resolve; not misconduct | `services/exceptions.ts`, `/exceptions`, AlertsPage | duties.test evaluator + notes | Implemented and Verified |
+| M3 | Duty handover | `duty_handovers` | duties.test handover | Implemented and Verified |
+| M4 | Versioned instructions + acknowledgements | `duty_instructions`, acks | duties.test instructions | Implemented and Verified |
+| M5 | Personnel duty history preserved after deactivation | personnel detail; no-delete triggers | rbac.test deactivation | Implemented and Verified |
+| M6 | PDF/CSV reports (roster, assignments, completion, exceptions, evidence) with access control and audit | `routes/reports.ts` | duties.test reports; scenarios 37–41 | Implemented and Verified |
+| M7 | Audited corrections (original, reason, actor, time, approval) | `record_corrections` | duties.test corrections | Implemented and Verified |
+| M8 | Deterministic demo generator + reset | `demo-operations.ts`, `pnpm db:reset-demo` | used before every scenario run | Implemented and Verified |
+| M9 | Protected system health; backup only with real verification | `/system/status`, backup script JSON | duties.test status; screenshot 21 | Implemented and Verified |
+| M10 | Scenario-based demonstrations | `tools/scenarios.ts` | 42/42 checks (`docs/demo-run/scenarios-run.json`) | Implemented and Verified (simulated devices) |
+| E1 | Reassignment, cancellation, replacement, schedule change with history | `removePersonnel`, `replacePersonnel`, `updateAssignment` | duties.test history | Implemented and Verified |
+| E2 | Availability / unavailability conflicts (no invented leave policy) | `personnel_unavailability` | duties.test leave conflict | Implemented and Verified |
+| E3 | Configurable per-category check-in intervals, reporting windows, grace | `duty_categories` → `/duties` → mobile `policyFromServer` | duties.test policy; mobile checkins.test | Implemented and Verified (device scheduling not run on hardware) |
+| E4 | In-app notifications with truthful delivery status | `notifications` | duties.test notifications | Implemented and Verified |
+| E5 | Centralised UI strings for English/Telugu | `apps/admin/src/i18n` | type-checked; Telugu dictionary empty by design | Partial (new screens only; no Telugu translations) |
+| E6 | Privacy, retention, revocation, lost device, backup restoration, tampering procedures | `operational-procedures.md`, `privacy-governance.md` | backup drill re-run (passed) | Implemented and Verified (documentation + drill) |
+| — | WorkManager deferrable work | — | — | Not Implemented (unchanged from 1.0) |
+| — | Push/SMS notifications | — | — | Not Implemented (out of scope; documented) |

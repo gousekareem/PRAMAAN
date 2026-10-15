@@ -3,9 +3,11 @@
 ## Request pipeline
 `requestId` → pino HTTP logging (redacted) → Helmet (CSP `default-src 'none'`, HSTS in production) →
 CORS allowlist → general rate limiter → JSON parser (2 MiB) → cookie parser → per-request timeouts →
-routes. Protected routers are mounted behind `requireAuth`, which verifies the JWT **and** re-checks in
-the database that the user is active and the session family has not been revoked; `requireRole` enforces
-RBAC; handlers enforce object-level scope for officers. Errors are converted to the uniform envelope with
+routes. Protected routers are mounted behind `requireAuth`, which verifies the JWT and then re-reads from the
+database whether the user and the linked personnel record are active, whether the session family has been
+revoked, the role, the permission set and the data scope (2.0). `requirePermission` enforces the permission
+model, and the SQL helpers in `security/access.ts` restrict every query to the caller's scope and to
+restricted-duty rules. Errors are converted to the uniform envelope with
 request IDs by `errorHandler`.
 
 ## Ingestion (`ingestion/ingest.ts`)
@@ -59,3 +61,23 @@ refetches data, so no sensitive content travels on the stream.
 Connection pool (10, 5 s connect timeout, 15 s statement timeout), bounded batches (≤ 200 events, device
 uses 50), graceful shutdown on SIGTERM (stop accepting, drain, close pool, forced exit after 20 s),
 `/health` liveness and `/ready` readiness (DB, PostGIS, migrations, writable storage).
+
+
+## Duty operations (PRAMAAN 2.0)
+* `services/duties.ts` holds the domain logic, independent of HTTP: creating assignments, eligibility and conflict
+  checks (`findConflicts`: overlapping assignments, individual sessions and unavailability), adding, removing
+  and replacing personnel, the state machine (`TRANSITIONS`), schedule and detail updates, acceptance,
+  versioned instructions, handovers, warnings, and `onDeviceDutyStarted`. Ingestion calls the last one in the
+  same transaction as a `DUTY_SESSION_STARTED` event. Each mutation writes `duty_assignment_changes` and the
+  hash-linked audit log in the caller's transaction.
+* Per-person sessions: publishing a duty creates a `duty_sessions` row for every assigned person (zone =
+  station/unit illustrative zone, if any). The unchanged ingestion pipeline therefore validates device
+  events against each person's planned window.
+* `services/exceptions.ts` raises delayed-reporting, overdue and sync-failure exceptions idempotently. It runs
+  on a timer in `server.ts` and on demand.
+* `services/notifications.ts` queues in-app notifications.
+* Routes: `duty-assignments.ts`, `personnel.ts`, `administration.ts` (units, accounts, policy, system status),
+  `presence.ts` (roster, check-ins, corrections), `inbox.ts` (notifications, exceptions, operations overview,
+  personal summary), `reports.ts` (CSV/PDF via pdfkit).
+* `database/demo-operations.ts` is the deterministic synthetic dataset. `tools/scenarios.ts` is the HTTP
+  scenario demonstration.

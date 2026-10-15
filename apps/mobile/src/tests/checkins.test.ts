@@ -218,3 +218,30 @@ describe('check-in scheduling', () => {
     expect(await t.engine.consecutiveMisses(DUTY)).toBe(2);
   });
 });
+
+describe('per-category check-in policy (duty assignments)', () => {
+  it('maps the server category policy and falls back to defaults for invalid values', async () => {
+    const { policyFromServer, policyForDutyRow } = await import('../checkins/checkinEngine');
+    const p = policyFromServer({ policyVersion: 3, minIntervalMin: 45, maxIntervalMin: 90, responseWindowSec: 120 });
+    expect(p).toMatchObject({ policyVersion: 3, minIntervalMs: 45 * 60_000, maxIntervalMs: 90 * 60_000, responseWindowMs: 120_000, challengeLimitMs: 5000 });
+    expect(policyFromServer({ minIntervalMin: 90, maxIntervalMin: 30, responseWindowSec: 120 })).toBe(DEFAULT_POLICY);
+    expect(policyFromServer(null)).toBe(DEFAULT_POLICY);
+    expect(policyForDutyRow({ assignment_json: '{not json' })).toBe(DEFAULT_POLICY);
+    expect(policyForDutyRow({ assignment_json: JSON.stringify({ checkinPolicy: { minIntervalMin: 45, maxIntervalMin: 90, responseWindowSec: 120 } }) }).maxIntervalMs).toBe(90 * 60_000);
+    expect(policyForDutyRow({ assignment_json: null })).toBe(DEFAULT_POLICY);
+  });
+
+  it('schedules within the duty category window instead of the global default', async () => {
+    const { policyFromServer } = await import('../checkins/checkinEngine');
+    const t = await make();
+    const vip = policyFromServer({ minIntervalMin: 45, maxIntervalMin: 50, responseWindowSec: 120 });
+    const now = Date.parse((await t.clock.now()).wallTime);
+    const s = (await t.engine.scheduleNext(DUTY, '2026-10-02T23:00:00.000Z', vip))!;
+    const delta = Date.parse(s.scheduledFor) - now;
+    expect(delta).toBeGreaterThanOrEqual(45 * 60_000);
+    expect(delta).toBeLessThanOrEqual(50 * 60_000 + 1000);
+    expect(Date.parse(s.deadlineAt) - Date.parse(s.scheduledFor)).toBe(120_000);
+    const ev = (await t.db.execute("SELECT envelope_json FROM ledger_events WHERE event_type = 'CHECKIN_SCHEDULED'")).rows[0];
+    expect(JSON.parse(String(ev!.envelope_json)).payload.responseWindowMs).toBe(120_000);
+  });
+});

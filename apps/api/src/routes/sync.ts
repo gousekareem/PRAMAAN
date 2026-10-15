@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import type { AppContext } from '../context.js';
-import { authUser, h, requireRole } from '../middleware/auth.js';
+import { authUser, h, requirePermission } from '../middleware/auth.js';
 import { reqId } from '../middleware/request-id.js';
 import { ingestBatch } from '../ingestion/ingest.js';
 import { handleEvidenceUpload } from '../evidence/upload.js';
@@ -29,7 +29,7 @@ export function syncRoutes(ctx: AppContext): Router {
   r.post(
     '/batch',
     limiter,
-    requireRole('OFFICER'),
+    requirePermission('checkin.perform'),
     h(async (req, res) => {
       const out = await ingestBatch(ctx, authUser(req), req.body, reqId(req));
       res.status(out.status).json(out.body);
@@ -38,7 +38,7 @@ export function syncRoutes(ctx: AppContext): Router {
   r.put(
     '/evidence/:evidenceId',
     limiter,
-    requireRole('OFFICER'),
+    requirePermission('checkin.perform'),
     h(async (req, res) => {
       const out = await handleEvidenceUpload(
         ctx,

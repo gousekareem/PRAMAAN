@@ -5,12 +5,8 @@
   "description": "Standalone, dashboard-independent verifier for exported PRAMAAN evidence packages.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "bin": {
-    "pramaan-verify": "dist/cli.js"
-  },
-  "files": [
-    "dist"
-  ],
+  "bin": { "pramaan-verify": "dist/cli.js" },
+  "files": ["dist"],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",

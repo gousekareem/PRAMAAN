@@ -1,26 +1,26 @@
-# Local development services.
+﻿# Local development services.
 #   docker compose up -d db                 -> PostgreSQL 16 + PostGIS 3.4 only (recommended for development)
 #   docker compose --profile full up -d     -> also runs the API and dashboard containers
 services:
   db:
     image: postgis/postgis:16-3.4
-    container_name: pramaan-db
+    container_name: pramaan2-db
     environment:
       POSTGRES_USER: pramaan
-      POSTGRES_PASSWORD: pramaan_dev_only # development only
+      POSTGRES_PASSWORD: pramaan_dev_only   # development only
       POSTGRES_DB: pramaan
     ports:
-      - '5433:5432'
+      - "5434:5432"   # host port 5433 avoids clashing with a locally installed PostgreSQL on 5432
     volumes:
       - pramaan-pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U pramaan -d pramaan']
+      test: ["CMD-SHELL", "pg_isready -U pramaan -d pramaan"]
       interval: 5s
       timeout: 5s
       retries: 20
 
   api:
-    profiles: ['full']
+    profiles: ["full"]
     build:
       context: .
       dockerfile: deploy/Dockerfile.api
@@ -31,26 +31,27 @@ services:
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?set JWT_ACCESS_SECRET in .env}
       CORS_ORIGINS: http://localhost:8080
       EVIDENCE_STORAGE_DIR: /data/evidence
-      RUN_MIGRATIONS_ON_START: 'true'
+      RUN_MIGRATIONS_ON_START: "true"
     volumes:
       - pramaan-evidence:/data/evidence
     ports:
-      - '4000:4000'
+      - "4000:4000"
     depends_on:
       db:
         condition: service_healthy
 
   admin:
-    profiles: ['full']
+    profiles: ["full"]
     build:
       context: .
       dockerfile: deploy/Dockerfile.admin
       args:
         VITE_API_BASE_URL: http://localhost:4000
     ports:
-      - '8080:8080'
+      - "8080:8080"
     depends_on: [api]
 
 volumes:
   pramaan-pgdata:
   pramaan-evidence:
+

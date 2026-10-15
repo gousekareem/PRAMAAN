@@ -26,6 +26,10 @@ flowchart LR
 | Evidence | persistent disk (paid instance type); single instance; object storage = future work |
 | Observability | structured JSON logs (redacted) in Render logs; health checks |
 | Rollback | Render keeps the previous deploy on build/pre-deploy failure; manual rollback; forward-only migrations |
+| Demo safety (2.0) | `ALLOW_DEMO_SEED` rejected in production; `ALLOW_DEMO_LOGIN` unset → demo accounts refused; enabling it is logged and visible on the status page |
+| Upgrade (2.0) | migrations 0006–0007 apply automatically in the pre-deploy step and are upgrade-safe for a 1.0 database |
+| Exceptions (2.0) | in-process evaluator every `EXCEPTION_EVALUATOR_INTERVAL_SECONDS` (default 60; 0 disables) |
+| Backup status (2.0) | `BACKUP_VERIFICATION_FILE` → JSON written by the restore drill; otherwise shown as “not available” |
 
 The exact procedure is in the *Windows and Render Deployment Guide*. **No deployment was performed for
 this delivery** (no credentials were available).

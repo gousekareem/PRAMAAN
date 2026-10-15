@@ -2,7 +2,5 @@
   "name": "pramaan-docs-tools",
   "private": true,
   "description": "Renders Mermaid diagrams for the PDF build (python build_pdf.py). Not part of the runtime.",
-  "dependencies": {
-    "mermaid": "11.12.0"
-  }
+  "dependencies": { "mermaid": "11.12.0" }
 }
